@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --gold:   #2F6FEE;
+    --cream:  #F3F8FF;
+    --stone:  #5C6F8E;
+    --dark:   #0B1F3A;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-cream text-stone-dark font-sans antialiased;
+    font-family: var(--font-inter), system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-cormorant), Georgia, serif;
+    @apply font-light tracking-wide;
+  }
+}
+
+@layer components {
+  /* Gold divider line */
+  .gold-line {
+    @apply w-16 h-px bg-gold mx-auto my-4;
+  }
+
+  /* Section padding */
+  .section {
+    @apply py-20 px-6;
+  }
+  .section-container {
+    @apply max-w-6xl mx-auto;
+  }
+
+  /* Primary button — gold */
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 px-5 sm:px-8 py-3.5 sm:py-4 bg-gold text-white
+           text-sm sm:text-base font-medium tracking-widest uppercase
+           hover:bg-gold-dark transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2;
+  }
+
+  /* Outline button */
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-5 sm:px-8 py-3.5 sm:py-4 border border-gold text-gold
+           text-sm sm:text-base font-medium tracking-widest uppercase
+           hover:bg-gold hover:text-white transition-all duration-300;
+  }
+
+  /* Form inputs */
+  .form-field {
+    @apply w-full px-4 py-3.5 bg-white border border-stone-light/40
+           text-stone-dark placeholder-stone-light/60
+           focus:outline-none focus:border-gold transition-colors duration-200
+           text-base;
+    min-width: 0;
+  }
+
+  .form-label {
+    @apply block text-xs font-medium tracking-widest uppercase text-stone mb-2;
+  }
+
+  /* Nav link */
+  .nav-link {
+    @apply text-sm tracking-widest uppercase text-stone hover:text-gold
+           transition-colors duration-200 font-medium;
+  }
+
+  /* Service card */
+  .service-card {
+    @apply bg-white p-8 border border-cream-dark hover:border-gold/40
+           transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+}
+
+/* Scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}

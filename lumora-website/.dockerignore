@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.local
+.env.*.local
+*.log
+dev-server.log
+dev-server.err.log
+tsconfig.tsbuildinfo
+README.md
+start-dev.ps1

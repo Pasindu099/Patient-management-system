@@ -1,0 +1,115 @@
+# ── Lumora production stack ──────────────────────────────────────────
+# Run from the deploy/ directory on the server:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Reads variables from deploy/.env (see .env.production.example).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lumora_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # NOT published to the host — only reachable inside the compose network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lumora_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pms:
+    build:
+      context: ../dental-pms
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
+        NEXT_PUBLIC_APP_URL: https://${PMS_DOMAIN}
+        NEXT_PUBLIC_DEFAULT_CURRENCY: ${NEXT_PUBLIC_DEFAULT_CURRENCY}
+        NEXT_PUBLIC_USD_RATE: ${NEXT_PUBLIC_USD_RATE}
+    container_name: lumora_pms
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      NEXTAUTH_URL: https://${PMS_DOMAIN}
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
+      NEXT_PUBLIC_APP_URL: https://${PMS_DOMAIN}
+      NEXT_PUBLIC_DEFAULT_CURRENCY: ${NEXT_PUBLIC_DEFAULT_CURRENCY}
+      NEXT_PUBLIC_USD_RATE: ${NEXT_PUBLIC_USD_RATE}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      TRANSCRIBE_MAX_MB: ${TRANSCRIBE_MAX_MB}
+      NOTIFY_LK_API_KEY: ${NOTIFY_LK_API_KEY}
+      NOTIFY_LK_USER_ID: ${NOTIFY_LK_USER_ID}
+      NOTIFY_LK_SENDER_ID: ${NOTIFY_LK_SENDER_ID}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  website:
+    build:
+      context: ../lumora-website
+      args:
+        NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN}
+        NEXT_PUBLIC_CLINIC_NAME: ${NEXT_PUBLIC_CLINIC_NAME}
+        NEXT_PUBLIC_CLINIC_PHONE: ${NEXT_PUBLIC_CLINIC_PHONE}
+        NEXT_PUBLIC_CLINIC_EMAIL: ${NEXT_PUBLIC_CLINIC_EMAIL}
+        NEXT_PUBLIC_CLINIC_ADDRESS: ${NEXT_PUBLIC_CLINIC_ADDRESS}
+        NEXT_PUBLIC_CLINIC_WHATSAPP: ${NEXT_PUBLIC_CLINIC_WHATSAPP}
+    container_name: lumora_website
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pms:
+        # ensures migrations have run before the website serves traffic
+        condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: lumora_caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      PMS_DOMAIN: ${PMS_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - pms
+      - website
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

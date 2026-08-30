@@ -1,0 +1,1380 @@
+// Prisma Schema — Dental PMS (Sri Lanka Edition)
+// Run: npx prisma db push && npx tsx prisma/seed.ts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  DOCTOR // v2: was DENTIST / HYGIENIST
+  HEAD_NURSE // v2: was CLINIC_MANAGER — union of nurse + receptionist permissions
+  NURSE
+  RECEPTIONIST
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum AppointmentType {
+  CHECKUP
+  CLEANING
+  FILLING
+  CROWN
+  ROOT_CANAL
+  EXTRACTION
+  ORTHODONTICS
+  WHITENING
+  IMPLANT
+  CONSULTATION
+  EMERGENCY
+  FOLLOW_UP
+  WALKIN
+}
+
+enum TreatmentStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  DECLINED
+  REFERRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  WRITTEN_OFF
+}
+
+enum Currency {
+  LKR
+  USD
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  VERY_HIGH
+}
+
+enum BookingSource {
+  WALKIN
+  PHONE
+  WHATSAPP
+  ONLINE
+  RECEPTIONIST
+}
+
+enum DoctorAvailabilityStatus {
+  NOT_STARTED
+  READY
+  WITH_PATIENT
+  SHORT_BREAK
+  UNAVAILABLE
+  SESSION_ENDED
+}
+
+// ─── BRANCHES ────────────────────────────────────────────────────────────────
+
+model Branch {
+  id                      String   @id @default(cuid())
+  name                    String // e.g. "Colombo 03", "Kandy"
+  address                 String?
+  city                    String?
+  phone                   String?
+  email                   String?
+  isActive                Boolean  @default(true)
+  chairCount              Int      @default(3)
+  // Defaults applied when a ClinicSession is materialized (admin-editable per session)
+  onlineSlotsDefault      Int      @default(4)
+  appointmentSlotsDefault Int      @default(10)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  users             UserBranch[]
+  appointments      Appointment[]
+  invoices          Invoice[]
+  visits            Visit[]
+  queueItems        ReceptionQueueItem[]
+  intakeSubmissions IntakeSubmission[]
+  transactions      FinancialTransaction[]
+  sessions          ClinicSession[]
+  availability      DoctorBranchAvailability[]
+  inventoryStock    InventoryStock[]
+  purchaseOrders    PurchaseOrder[]
+
+  @@map("branches")
+}
+
+// Staff can work at multiple branches
+model UserBranch {
+  userId    String
+  branchId  String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch    Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  isPrimary Boolean @default(false)
+
+  @@id([userId, branchId])
+  @@map("user_branches")
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  name        String
+  password    String
+  role        UserRole  @default(RECEPTIONIST)
+  avatar      String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  branches               UserBranch[]
+  appointments           Appointment[]              @relation("ProviderAppointments")
+  clinicalNotes          ClinicalNote[]
+  treatmentPlans         TreatmentPlan[]
+  auditLogs              AuditLog[]
+  doctorVisits           Visit[]                    @relation("DoctorVisits")
+  prescriptions          Prescription[]             @relation("DoctorPrescriptions")
+  onlineSlots            OnlineSlot[]               @relation("DoctorOnlineSlots")
+  statusEvents           DoctorStatusEvent[]        @relation("DoctorStatusEvents")
+  assignedQueue          ReceptionQueueItem[]       @relation("QueueAssignedDoctor")
+  calledQueue            ReceptionQueueItem[]       @relation("QueueCalledBy")
+  availability           DoctorBranchAvailability[]
+  observationsAuthored   VisitObservation[]         @relation("ObservationAuthor")
+  observationsOnBehalfOf VisitObservation[]         @relation("ObservationOnBehalfOf")
+  contracts              StaffContract[]
+  salaryRecords          SalaryRecord[]
+  diagnosisDraftsUpdated DiagnosisDraft[]           @relation("DiagnosisDraftUpdatedBy")
+
+  @@map("users")
+}
+
+// ─── PATIENTS ────────────────────────────────────────────────────────────────
+
+model Patient {
+  id            String @id @default(cuid())
+  patientNumber String @unique // e.g. PT-004821
+
+  // Demographics
+  firstName     String
+  lastName      String
+  dateOfBirth   DateTime
+  gender        Gender
+  preferredName String?
+
+  // Sri Lanka identity
+  nicNumber      String? @unique // National Identity Card (12-digit)
+  passportNumber String? // For foreigners / dual citizens
+
+  // Contact
+  email        String?
+  phone        String
+  phoneMobile  String?
+  addressLine1 String?
+  city         String?
+  district     String? // Sri Lanka uses districts
+  province     String?
+  country      String  @default("LK")
+
+  // Emergency contact
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
+
+  // Preferences
+  preferredLanguage String @default("en") // "en" | "si" (Sinhala)
+  communicationPref String @default("whatsapp") // whatsapp | sms | email
+
+  // Status
+  isActive   Boolean @default(true)
+  isDeceased Boolean @default(false)
+  notes      String?
+
+  // Family
+  familyGroupId String?
+  familyGroup   FamilyGroup? @relation(fields: [familyGroupId], references: [id])
+
+  // Timestamps
+  firstVisitDate DateTime?
+  lastVisitDate  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  medicalHistory    MedicalHistory?
+  insurance         InsuranceLetter[]
+  appointments      Appointment[]
+  clinicalNotes     ClinicalNote[]
+  treatmentPlans    TreatmentPlan[]
+  invoices          Invoice[]
+  recalls           Recall[]
+  riskAssessments   RiskAssessment[]
+  documents         PatientDocument[]
+  vitalSigns        VitalSign[]
+  auditLogs         AuditLog[]
+  visits            Visit[]
+  prescriptions     Prescription[]
+  installmentPlans  InstallmentPlan[]
+  transcripts       ConsultationTranscript[]
+  queueItems        ReceptionQueueItem[]
+  intakeSubmissions IntakeSubmission[]
+
+  @@index([lastName, firstName])
+  @@index([patientNumber])
+  @@index([phone])
+  @@index([nicNumber])
+  @@map("patients")
+}
+
+model FamilyGroup {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patients Patient[]
+
+  @@map("family_groups")
+}
+
+// ─── MEDICAL HISTORY ─────────────────────────────────────────────────────────
+
+model MedicalHistory {
+  id        String  @id @default(cuid())
+  patientId String  @unique
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  // JSON arrays
+  allergies   Json @default("[]") // [{substance, severity, reaction, confirmed}]
+  medications Json @default("[]") // [{name, dose, frequency, prescriber}]
+  conditions  Json @default("[]") // [{condition, status, diagnosedDate}]
+
+  isPregnant          Boolean   @default(false)
+  pregnancyDueDate    DateTime?
+  isSmoker            Boolean   @default(false)
+  alcoholUnitsPerWeek Int?
+
+  anxietyLevel       Int? // 1-5
+  gagReflex          Boolean @default(false)
+  requiresAntibiotic Boolean @default(false)
+
+  // Sri Lanka: PDPA consent (simpler than GDPR)
+  pdpaConsentDate  DateTime?
+  marketingConsent Boolean   @default(false)
+
+  lastUpdated   DateTime @updatedAt
+  lastUpdatedBy String?
+
+  @@map("medical_histories")
+}
+
+model VitalSign {
+  id           String   @id @default(cuid())
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recordedAt   DateTime @default(now())
+  recordedById String?
+  systolic     Int?
+  diastolic    Int?
+  pulse        Int?
+  oxygenSat    Float?
+  temperature  Float?
+  weight       Float?
+  height       Float?
+  notes        String?
+
+  @@index([patientId, recordedAt])
+  @@map("vital_signs")
+}
+
+// ─── INSURANCE — Sri Lanka style ─────────────────────────────────────────────
+// No EDI. Manual letter-of-guarantee upload and tracking.
+
+model InsuranceLetter {
+  id        String  @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  insurerName  String // AIA, Ceylinco, Union Assurance etc.
+  policyNumber String?
+  memberName   String?
+
+  // Letter of Guarantee tracking
+  letterStatus        String   @default("PENDING") // PENDING | APPROVED | PARTIAL | REJECTED
+  approvedAmount      Float?
+  approvedAmountCents Int?
+  currency            Currency @default(LKR)
+
+  // Document
+  letterFileUrl  String?
+  letterFileName String?
+
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  notes       String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("insurance_letters")
+}
+
+// ─── APPOINTMENTS ────────────────────────────────────────────────────────────
+
+model Appointment {
+  id                String @id @default(cuid())
+  appointmentNumber String @unique // APT-001234
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  providerId String
+  provider   User   @relation("ProviderAppointments", fields: [providerId], references: [id])
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  type          AppointmentType
+  status        AppointmentStatus @default(SCHEDULED)
+  bookingSource BookingSource     @default(RECEPTIONIST)
+
+  startTime    DateTime
+  endTime      DateTime
+  durationMins Int
+
+  chair  String?
+  reason String?
+  notes  String?
+
+  // v2 sessions: which session this appointment belongs to and which
+  // capacity allocation it consumed ("ONLINE" | "APPOINTMENT")
+  sessionId String?
+  session   ClinicSession? @relation(fields: [sessionId], references: [id])
+  slotKind  String?
+
+  // No-show prediction
+  noShowRisk Float?
+
+  // Confirmation
+  confirmedAt DateTime?
+  confirmedBy String? // "whatsapp" | "sms" | "phone"
+
+  // WhatsApp / SMS reminder tracking
+  reminder24hSentAt DateTime?
+  reminder2hSentAt  DateTime?
+
+  arrivedAt          DateTime?
+  completedAt        DateTime?
+  cancellationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinicalNotes ClinicalNote[]
+  invoiceItems  InvoiceItem[]
+  queueItems    ReceptionQueueItem[]
+
+  @@index([patientId, startTime])
+  @@index([providerId, startTime])
+  @@index([branchId, startTime])
+  @@index([startTime])
+  @@map("appointments")
+}
+
+model ReceptionQueueItem {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id])
+
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+
+  assignedDoctorId String?
+  assignedDoctor   User?   @relation("QueueAssignedDoctor", fields: [assignedDoctorId], references: [id])
+
+  calledById String?
+  calledBy   User?   @relation("QueueCalledBy", fields: [calledById], references: [id])
+
+  visitId      String?
+  sessionId    String?
+  session      ClinicSession? @relation(fields: [sessionId], references: [id])
+  chairNumber  Int?
+  queueNumber  Int // the patient's token number within the session
+  status       String         @default("CHECKED_IN") // CHECKED_IN | ASSIGNED | IN_CHAIR | COMPLETED | PAID | LEFT
+  source       String         @default("WALK_IN") // WALK_IN | APPOINTMENT | FOLLOW_UP
+  patientType  String         @default("UNKNOWN") // EXISTING | NEW | UNKNOWN
+  intakeStatus String         @default("NO_INTAKE") // NO_INTAKE | QR_SUBMITTED | PAPER_PENDING | MATCHED | NEEDS_REVIEW | PATIENT_CREATED
+  displayName  String?
+  contactPhone String?
+  priority     Int            @default(0)
+  reason       String?
+  notes        String?
+  referralNote String? // set when a doctor refers the patient onward
+  referredById String? // doctor who made the referral
+
+  arrivedAt  DateTime  @default(now())
+  calledAt   DateTime?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  intakeSubmission IntakeSubmission?
+  diagnosisDraft   DiagnosisDraft?
+
+  @@index([branchId, status, queueNumber])
+  @@index([assignedDoctorId, status])
+  @@index([patientId, arrivedAt])
+  @@map("reception_queue_items")
+}
+
+// A nurse's in-progress tooth-chart findings for the patient currently in a
+// doctor's chair. The real Visit row (and its toothFindings) does not exist
+// until the doctor finalizes the 8-step visit, so this gives the nurse
+// something to write to and the doctor's Diagnosis step something to poll —
+// scoped to a single queue item, deleted once that visit is saved.
+model DiagnosisDraft {
+  id            String             @id @default(cuid())
+  queueItemId   String             @unique
+  queueItem     ReceptionQueueItem @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  toothFindings Json               @default("{}")
+  updatedById   String
+  updatedBy     User               @relation("DiagnosisDraftUpdatedBy", fields: [updatedById], references: [id])
+  updatedAt     DateTime           @updatedAt
+
+  @@map("diagnosis_drafts")
+}
+
+model IntakeSubmission {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  queueItemId String?             @unique
+  queueItem   ReceptionQueueItem? @relation(fields: [queueItemId], references: [id], onDelete: SetNull)
+
+  matchedPatientId String?
+  matchedPatient   Patient? @relation(fields: [matchedPatientId], references: [id], onDelete: SetNull)
+
+  tokenNumber     Int
+  source          String  @default("QR") // QR | PAPER_ENTRY
+  patientType     String  @default("UNKNOWN") // EXISTING | NEW | UNKNOWN
+  reviewStatus    String  @default("PENDING") // PENDING | MATCHED | CREATED_PATIENT | DISMISSED
+  matchConfidence String? // HIGH | MEDIUM | LOW
+
+  firstName       String?
+  lastName        String?
+  phone           String?
+  patientNumber   String?
+  dateOfBirth     String?
+  gender          String?
+  reason          String?
+  allergies       String?
+  medicalWarnings String?
+  emergencyName   String?
+  emergencyPhone  String?
+  rawData         Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId, tokenNumber, createdAt])
+  @@index([matchedPatientId])
+  @@map("intake_submissions")
+}
+
+model Recall {
+  id             String    @id @default(cuid())
+  patientId      String
+  patient        Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recallType     String // "hygiene" | "checkup"
+  dueDate        DateTime
+  intervalMonths Int       @default(6)
+  isDone         Boolean   @default(false)
+  completedDate  DateTime?
+  remindersSent  Int       @default(0)
+  lastReminderAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([patientId, dueDate])
+  @@map("recalls")
+}
+
+// ─── CLINICAL ────────────────────────────────────────────────────────────────
+
+model ClinicalNote {
+  id            String       @id @default(cuid())
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  authorId      String
+  author        User         @relation(fields: [authorId], references: [id])
+  noteType      String // "soap" | "perio" | "treatment" | "general"
+  subjective    String?
+  objective     String?
+  assessment    String?
+  plan          String?
+  content       String?
+  isLocked      Boolean      @default(false)
+  lockedAt      DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([patientId, createdAt])
+  @@map("clinical_notes")
+}
+
+model TreatmentPlan {
+  id                  String          @id @default(cuid())
+  patientId           String
+  patient             Patient         @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  createdById         String
+  createdBy           User            @relation(fields: [createdById], references: [id])
+  title               String
+  description         String?
+  totalFee            Float           @default(0)
+  currency            Currency        @default(LKR)
+  estimatedInsurance  Float           @default(0)
+  patientPortion      Float           @default(0)
+  totalFeeCents       Int             @default(0)
+  patientPortionCents Int             @default(0)
+  presentedAt         DateTime?
+  acceptedAt          DateTime?
+  declinedAt          DateTime?
+  status              TreatmentStatus @default(PLANNED)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  items TreatmentPlanItem[]
+
+  @@map("treatment_plans")
+}
+
+model TreatmentPlanItem {
+  id     String        @id @default(cuid())
+  planId String
+  plan   TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  // Sri Lanka: free-text procedure names, no CDT codes required
+  procedureCode   String? // optional internal code
+  // KPI: catalog entry this planned procedure came from, so plan-vs-billed
+  // conversion can be grouped by treatment category. Null for free-text items.
+  // Named feeRef because `fee` below is the Float amount, not the catalog row.
+  feeId           String?
+  feeRef          TreatmentFee? @relation(fields: [feeId], references: [id])
+  procedureName   String // e.g. "Upper molar extraction", "Composite filling"
+  toothNumbers    String?
+  surfaces        String?
+  fee             Float
+  currency        Currency        @default(LKR)
+  insuranceEst    Float           @default(0)
+  patientEst      Float           @default(0)
+  feeCents        Int             @default(0)
+  patientEstCents Int             @default(0)
+  status          TreatmentStatus @default(PLANNED)
+  phase           Int             @default(1)
+  sequence        Int             @default(1)
+  completedAt     DateTime?
+  // KPI: the visit that actually completed this item. Lets "average visits to
+  // complete a plan" be counted exactly instead of inferred from date ranges.
+  completedVisitId String?
+  completedVisit   Visit? @relation("PlanItemCompletedVisit", fields: [completedVisitId], references: [id])
+
+  @@index([feeId])
+  @@index([completedVisitId])
+  @@map("treatment_plan_items")
+}
+
+// ─── BILLING — Sri Lanka ─────────────────────────────────────────────────────
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique // INV-2024-001234
+  patientId       String
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  branchId        String?
+  branch          Branch?       @relation(fields: [branchId], references: [id])
+  status          InvoiceStatus @default(DRAFT)
+  currency        Currency      @default(LKR)
+  exchangeRate    Float? // LKR per USD at time of invoice
+  subtotal        Float
+  discount        Float         @default(0)
+  tax             Float         @default(0)
+  total           Float
+  amountPaid      Float         @default(0)
+  balance         Float
+  // v2 money-as-integers (authoritative). Float columns above are frozen
+  // legacy mirrors kept in sync until the UI cutover, then dropped.
+  subtotalCents   Int           @default(0)
+  discountCents   Int           @default(0)
+  taxCents        Int           @default(0)
+  totalCents      Int           @default(0)
+  amountPaidCents Int           @default(0)
+  balanceCents    Int           @default(0)
+  dueDate         DateTime?
+  paidDate        DateTime?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items           InvoiceItem[]
+  payments        Payment[]
+  installmentPlan InstallmentPlan?
+  visitInvoices   VisitInvoice[]
+
+  @@index([patientId, status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id             String       @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  appointmentId  String?
+  appointment    Appointment? @relation(fields: [appointmentId], references: [id])
+  procedureCode  String?
+  // KPI: which catalog entry this line was billed from. Null for free-text
+  // lines and for every row created before the KPI work — category revenue
+  // falls back to `description` grouping when absent.
+  feeId          String?
+  fee            TreatmentFee? @relation(fields: [feeId], references: [id])
+  description    String
+  toothNumbers   String?
+  quantity       Int          @default(1)
+  unitPrice      Float
+  total          Float
+  unitPriceCents Int          @default(0)
+  totalCents     Int          @default(0)
+
+  @@index([feeId])
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount        Float
+  amountCents   Int      @default(0)
+  currency      Currency @default(LKR)
+  method        String // "cash" | "card" | "bank_transfer"
+  reference     String?
+  notes         String?
+  paidAt        DateTime @default(now())
+  processedById String?
+
+  @@map("payments")
+}
+
+// ─── FINANCE LEDGER — v2 ─────────────────────────────────────────────────────
+// Single table for EVERY money movement. Future AI finance agent reads/writes
+// exclusively through this ledger (via scoped APIs), never raw billing tables.
+
+enum TxDirection {
+  IN
+  OUT
+}
+
+model FinanceCategory {
+  id        String      @id @default(cuid())
+  code      String      @unique // PATIENT_PAYMENT | REFUND | SALARY | RENT | LAB_FEE | SUPPLIES | OTHER_EXPENSE | OTHER_INCOME
+  name      String
+  direction TxDirection
+  isActive  Boolean     @default(true)
+
+  transactions FinancialTransaction[]
+
+  @@map("finance_categories")
+}
+
+model FinancialTransaction {
+  id          String      @id @default(cuid())
+  direction   TxDirection
+  amountCents Int
+  currency    Currency    @default(LKR)
+
+  categoryId String
+  category   FinanceCategory @relation(fields: [categoryId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  date             DateTime @default(now())
+  recordedByUserId String?
+  serviceAccountId String? // future AI agent principal
+
+  // Polymorphic pointer to the source record
+  refType String? // "payment" | "invoice" | "salary_record" | "purchase_order" | "expense" | "refund"
+  refId   String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([branchId, date])
+  @@index([categoryId, date])
+  @@index([refType, refId])
+  @@map("financial_transactions")
+}
+
+// ─── RISK ASSESSMENT ─────────────────────────────────────────────────────────
+
+model RiskAssessment {
+  id              String    @id @default(cuid())
+  patientId       String
+  patient         Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  overallScore    Int
+  riskLevel       RiskLevel
+  cariesScore     Int?
+  perioScore      Int?
+  riskFactors     Json      @default("[]")
+  recommendations Json      @default("[]")
+  assessedAt      DateTime  @default(now())
+  nextReviewDate  DateTime?
+
+  @@index([patientId, assessedAt])
+  @@map("risk_assessments")
+}
+
+// ─── DOCUMENTS ───────────────────────────────────────────────────────────────
+
+model PatientDocument {
+  id              String    @id @default(cuid())
+  patientId       String
+  patient         Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  documentType    String // "consent" | "xray" | "photo" | "lab" | "insurance_letter" | "other"
+  title           String
+  fileName        String
+  fileUrl         String
+  fileSize        Int?
+  mimeType        String?
+  signedAt        DateTime?
+  signedByPatient Boolean   @default(false)
+  signerName      String?
+  uploadedById    String?
+  uploadedAt      DateTime  @default(now())
+
+  @@index([patientId, documentType])
+  @@map("patient_documents")
+}
+
+// ─── AUDIT LOG ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  patientId  String?
+  patient    Patient? @relation(fields: [patientId], references: [id])
+  action     String // CREATE | UPDATE | DELETE | VIEW | LOGIN
+  resource   String
+  resourceId String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([patientId, createdAt])
+  @@map("audit_logs")
+}
+
+// ─── CONSULTATION TRANSCRIPTS ────────────────────────────────────────────────
+
+model ConsultationTranscript {
+  id            String  @id @default(cuid())
+  patientId     String
+  patient       Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+
+  // Audio metadata
+  audioFileName     String?
+  audioDurationSecs Int?
+  languageDetected  String? // "si" | "en" | "mixed"
+
+  // Raw transcript from Whisper
+  rawTranscript String // full verbatim text
+
+  // Structured AI summary
+  chiefComplaint      String?
+  clinicalFindings    String?
+  diagnosis           String?
+  treatmentCarriedOut String?
+  patientInstructions String?
+  followUpPlan        String?
+  additionalNotes     String?
+
+  // Status
+  status String @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | SAVED_TO_NOTES | DISCARDED
+
+  // Saved note reference (after doctor approves)
+  clinicalNoteId String?
+
+  recordedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([patientId, createdAt])
+  @@map("consultation_transcripts")
+}
+
+// ─── INSTALLMENT PLANS ───────────────────────────────────────────────────────
+
+model InstallmentPlan {
+  id                        String   @id @default(cuid())
+  invoiceId                 String   @unique
+  invoice                   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  patientId                 String
+  patient                   Patient  @relation(fields: [patientId], references: [id])
+  totalAmount               Float
+  numberOfInstallments      Int
+  amountPerInstallment      Float
+  totalAmountCents          Int      @default(0)
+  amountPerInstallmentCents Int      @default(0)
+  notes                     String?
+  createdById               String
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  installments Installment[]
+
+  @@map("installment_plans")
+}
+
+model Installment {
+  id              String          @id @default(cuid())
+  planId          String
+  plan            InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  number          Int // 1, 2, 3...
+  amount          Float
+  amountCents     Int             @default(0)
+  dueDate         DateTime?
+  paidAt          DateTime?
+  paidAmount      Float?
+  paidAmountCents Int?
+  paymentMethod   String? // cash | card | bank_transfer
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  @@index([planId])
+  @@map("installments")
+}
+
+// ─── VISIT RECORDS ────────────────────────────────────────────────────────────
+// Simple record of each patient visit — the core of the workflow
+
+model Visit {
+  id          String  @id @default(cuid())
+  visitNumber String  @unique // VIS-001234
+  patientId   String
+  patient     Patient @relation(fields: [patientId], references: [id])
+  doctorId    String
+  doctor      User    @relation("DoctorVisits", fields: [doctorId], references: [id])
+  branchId    String?
+  branch      Branch? @relation(fields: [branchId], references: [id])
+
+  // Visit details
+  chiefComplaint String?
+  examination    String?
+  diagnosis      String?
+  treatmentDone  String?
+  nextVisitPlan  String?
+  // KPI: the date the doctor intends to see this patient again. Set even when
+  // no Appointment row is booked, so follow-up adherence is measurable for
+  // walk-in-driven follow-ups too (nextVisitPlan alone is free text).
+  nextVisitDate  DateTime?
+
+  // Status
+  status String @default("IN_PROGRESS") // IN_PROGRESS | COMPLETED | READY_TO_PAY
+
+  // Tooth conditions recorded this visit (JSON array)
+  toothFindings Json?
+
+  visitDate   DateTime  @default(now())
+  completedAt DateTime?
+  // v2 step 8 "End visit": set once the doctor finalizes the bill.
+  // A locked visit rejects further clinical edits (append-only
+  // observations are exempt — see VisitObservation).
+  lockedAt    DateTime?
+  patientType String    @default("ADULT") // ADULT | CHILD — drives inventory BOM choice
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  prescriptions Prescription[]
+  invoices      VisitInvoice[]
+  overrides     BillOverride[]
+  observations  VisitObservation[]
+  completedPlanItems TreatmentPlanItem[] @relation("PlanItemCompletedVisit")
+
+  @@index([patientId, visitDate])
+  @@index([doctorId, visitDate])
+  @@index([nextVisitDate])
+  @@map("visits")
+}
+
+model VisitInvoice {
+  id        String  @id @default(cuid())
+  visitId   String
+  visit     Visit   @relation(fields: [visitId], references: [id])
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([visitId, invoiceId])
+  @@map("visit_invoices")
+}
+
+// ─── PRESCRIPTIONS ────────────────────────────────────────────────────────────
+
+model Prescription {
+  id                 String    @id @default(cuid())
+  prescriptionNumber String    @unique // RX-001234
+  patientId          String
+  patient            Patient   @relation(fields: [patientId], references: [id])
+  doctorId           String
+  doctor             User      @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  visitId            String?
+  visit              Visit?    @relation(fields: [visitId], references: [id])
+  notes              String?
+  printedAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  items PrescriptionItem[]
+
+  @@index([patientId])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  drugName       String
+  dose           String
+  frequency      String
+  duration       String
+  instructions   String?
+  quantity       Int          @default(1)
+
+  @@map("prescription_items")
+}
+
+// ─── SESSIONS & ROSTERING — v2 ───────────────────────────────────────────────
+// Each branch day has two sessions. Sessions are materialized lazily (first
+// booking/check-in creates the row from branch defaults); Admin can adjust
+// per-session capacities. The website only ever sees onlineCapacity.
+
+enum SessionPeriod {
+  MORNING // 09:00 – 14:00
+  EVENING // 16:00 – 21:00
+}
+
+model ClinicSession {
+  id       String        @id @default(cuid())
+  branchId String
+  branch   Branch        @relation(fields: [branchId], references: [id])
+  date     DateTime      @db.Date
+  period   SessionPeriod
+
+  onlineCapacity      Int     @default(4) // sellable on the website
+  appointmentCapacity Int     @default(10) // onsite/phone bookings
+  // remainder of the session = walk-ins (no numeric cap)
+  isOpen              Boolean @default(true)
+  notes               String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+  queueItems   ReceptionQueueItem[]
+
+  @@unique([branchId, date, period])
+  @@index([date])
+  @@map("clinic_sessions")
+}
+
+// Which doctor works which branch, weekday and session. Booking and queue
+// assignment validate against this roster.
+model DoctorBranchAvailability {
+  id       String        @id @default(cuid())
+  doctorId String
+  doctor   User          @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  branchId String
+  branch   Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  weekday  Int // 0 = Sunday … 6 = Saturday
+  period   SessionPeriod
+  isActive Boolean       @default(true)
+
+  @@unique([doctorId, branchId, weekday, period])
+  @@index([branchId, weekday])
+  @@map("doctor_branch_availability")
+}
+
+// ─── ONLINE BOOKING SLOTS ────────────────────────────────────────────────────
+// Doctor/admin enables specific time slots for the public website booking system
+
+model OnlineSlot {
+  id          String   @id @default(cuid())
+  doctorId    String
+  doctor      User     @relation("DoctorOnlineSlots", fields: [doctorId], references: [id], onDelete: Cascade)
+  dayOfWeek   String // "monday" | "tuesday" | ... | "saturday" | "sunday"
+  startTime   String // "09:00" | "09:30" | "10:00" ...
+  isActive    Boolean  @default(true)
+  maxBookings Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([doctorId, dayOfWeek, startTime])
+  @@index([doctorId, dayOfWeek])
+  @@map("online_slots")
+}
+
+// ─── FEE SCHEDULE ────────────────────────────────────────────────────────────
+
+model DoctorStatusEvent {
+  id          String                   @id @default(cuid())
+  doctorId    String
+  doctor      User                     @relation("DoctorStatusEvents", fields: [doctorId], references: [id], onDelete: Cascade)
+  branchId    String?
+  status      DoctorAvailabilityStatus
+  queueItemId String?
+  note        String?
+  createdAt   DateTime                 @default(now())
+
+  @@index([doctorId, createdAt])
+  @@index([branchId, createdAt])
+  @@map("doctor_status_events")
+}
+
+model TreatmentFee {
+  id          String   @id @default(cuid())
+  category    String // Restorative | Prosthetic | Periodontal | etc.
+  subcategory String? // Permanent Teeth | Deciduous Teeth | etc.
+  name        String // Full display name
+  description String? // Any extra detail
+  price       Float    @default(0) // frozen legacy mirror
+  priceCents  Int      @default(0) // 0 = price not set yet (TBQ)
+  currency    String   @default("LKR")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  priceHistory TreatmentPriceHistory[]
+  boms         TreatmentBOM[]
+  invoiceItems InvoiceItem[]
+  planItems    TreatmentPlanItem[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("treatment_fees")
+}
+
+// ─── INVENTORY — v2 ───────────────────────────────────────────────────────────
+
+// Shared catalog — one item list works at both branches; stock/threshold
+// are tracked per branch below.
+model InventoryItem {
+  id        String   @id @default(cuid())
+  name      String
+  unit      String   @default("unit") // unit | ml | g | pack ...
+  // Scannable code printed on the shelf label (e.g. LDS-0042). Also accepts a
+  // manufacturer barcode pasted in, so an already-printed box can be used as-is.
+  code      String?  @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stock    InventoryStock[]
+  bomLines TreatmentBOMLine[]
+  poItems  PurchaseOrderItem[]
+
+  @@map("inventory_items")
+}
+
+model InventoryStock {
+  id                String        @id @default(cuid())
+  itemId            String
+  item              InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  branchId          String
+  branch            Branch        @relation(fields: [branchId], references: [id])
+  quantity          Float         @default(0)
+  reorderThreshold  Float         @default(0)
+  lowStockAlertedAt DateTime? // dedupe: don't re-alert every deduction
+  updatedAt         DateTime      @updatedAt
+
+  adjustments StockAdjustment[]
+
+  @@unique([itemId, branchId])
+  @@map("inventory_stock")
+}
+
+// Every movement is logged: goods received, manual corrections, automatic
+// deductions from a visit, and stock-take variances.
+model StockAdjustment {
+  id              String         @id @default(cuid())
+  stockId         String
+  stock           InventoryStock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  delta           Float // negative = deduction
+  kind            String // RECEIVED | CORRECTION | AUTO_DEDUCT | STOCK_TAKE
+  reason          String?
+  countedQuantity Float? // STOCK_TAKE: the counted figure (delta = counted - previous)
+  userId          String?
+  visitId         String? // AUTO_DEDUCT provenance
+  createdAt       DateTime       @default(now())
+
+  @@index([stockId, createdAt])
+  @@map("stock_adjustments")
+}
+
+// Per treatment, per patient type (adult/child), average resource usage.
+// Admin-configured only.
+model TreatmentBOM {
+  id          String       @id @default(cuid())
+  feeId       String
+  fee         TreatmentFee @relation(fields: [feeId], references: [id], onDelete: Cascade)
+  patientType String // ADULT | CHILD
+
+  lines TreatmentBOMLine[]
+
+  @@unique([feeId, patientType])
+  @@map("treatment_boms")
+}
+
+model TreatmentBOMLine {
+  id       String        @id @default(cuid())
+  bomId    String
+  bom      TreatmentBOM  @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  itemId   String
+  item     InventoryItem @relation(fields: [itemId], references: [id])
+  quantity Float // average usage
+
+  @@unique([bomId, itemId])
+  @@map("treatment_bom_lines")
+}
+
+// Effective-dated price history: TreatmentFee.priceCents is always the
+// CURRENT price (what the catalog dropdown shows); this table answers
+// "what was the price on date X" and powers the price-change report.
+// Changing a price never alters past bills (bills copy prices anyway).
+model TreatmentPriceHistory {
+  id            String       @id @default(cuid())
+  feeId         String
+  fee           TreatmentFee @relation(fields: [feeId], references: [id], onDelete: Cascade)
+  priceCents    Int
+  effectiveFrom DateTime     @default(now())
+  setByUserId   String?
+  createdAt     DateTime     @default(now())
+
+  @@index([feeId, effectiveFrom])
+  @@map("treatment_price_history")
+}
+
+// Silent log of list-price vs charged-amount differences on visit bills.
+// Never shown to the patient as a "discount"; Admin sees the report.
+model BillOverride {
+  id             String   @id @default(cuid())
+  visitId        String
+  visit          Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  description    String
+  toothNumbers   String?
+  listPriceCents Int
+  chargedCents   Int
+  doctorId       String
+  createdAt      DateTime @default(now())
+
+  @@index([doctorId, createdAt])
+  @@index([visitId])
+  @@map("bill_overrides")
+}
+
+// Append-only so a nurse and doctor can both write to an active visit from
+// different devices without conflicting. Never edited or deleted, only added to.
+model VisitObservation {
+  id                 String   @id @default(cuid())
+  visitId            String
+  visit              Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  authorId           String
+  author             User     @relation("ObservationAuthor", fields: [authorId], references: [id])
+  onBehalfOfDoctorId String? // set when a nurse scribes for a doctor
+  onBehalfOfDoctor   User?    @relation("ObservationOnBehalfOf", fields: [onBehalfOfDoctorId], references: [id])
+  text               String
+  createdAt          DateTime @default(now())
+
+  @@index([visitId, createdAt])
+  @@map("visit_observations")
+}
+
+// ─── AGENT READINESS — v2 ─────────────────────────────────────────────────────
+// Schema and API surface for a future AI finance/bookkeeping agent. No agent
+// is built here — this only makes it addable later without restructuring.
+// Scope boundary: finance + inventory only. Clinical/patient records are
+// structurally excluded (no ServiceAccount scope reaches them) — PDPA.
+
+model StaffContract {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  title           String
+  startDate       DateTime
+  endDate         DateTime?
+  baseSalaryCents Int
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("staff_contracts")
+}
+
+model SalaryRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  periodYear      Int
+  periodMonth     Int // 1-12
+  baseCents       Int
+  allowancesCents Int       @default(0)
+  deductionsCents Int       @default(0)
+  netCents        Int
+  paidAt          DateTime?
+  ledgerTxId      String? // set when marked paid
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, periodYear, periodMonth])
+  @@map("salary_records")
+}
+
+model Supplier {
+  id       String  @id @default(cuid())
+  name     String
+  phone    String?
+  email    String?
+  notes    String?
+  isActive Boolean @default(true)
+
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id          String    @id @default(cuid())
+  poNumber    String    @unique
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  branchId    String
+  branch      Branch    @relation(fields: [branchId], references: [id])
+  status      String    @default("DRAFT") // DRAFT | ORDERED | RECEIVED | CANCELLED
+  totalCents  Int       @default(0)
+  orderedAt   DateTime?
+  receivedAt  DateTime? // receiving increments inventory AND writes the ledger expense
+  ledgerTxId  String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  items PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id            String        @id @default(cuid())
+  poId          String
+  po            PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          InventoryItem @relation(fields: [itemId], references: [id])
+  quantity      Float
+  unitCostCents Int
+
+  @@map("purchase_order_items")
+}
+
+// Generic file-on-anything — invoices/receipts against transactions and POs
+model Attachment {
+  id           String   @id @default(cuid())
+  refType      String // "financial_transaction" | "purchase_order" | "staff_contract" | ...
+  refId        String
+  fileName     String
+  fileUrl      String
+  mimeType     String?
+  fileSize     Int?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([refType, refId])
+  @@map("attachments")
+}
+
+// Non-human principal for the future agent. No agent code exists yet —
+// this only gives it a place to authenticate from when it does.
+model ServiceAccount {
+  id         String    @id @default(cuid())
+  name       String
+  keyHash    String    @unique // bcrypt hash; raw key is shown once at creation
+  scopes     String[] // "finance:read" | "finance:propose" | "inventory:read" | "inventory:propose"
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  actions AgentAction[]
+
+  @@map("service_accounts")
+}
+
+// Propose-and-approve queue. A future agent's writes land here as PENDING;
+// Admin approves or rejects from the admin panel. Nothing auto-executes.
+model AgentAction {
+  id               String          @id @default(cuid())
+  serviceAccountId String?
+  serviceAccount   ServiceAccount? @relation(fields: [serviceAccountId], references: [id])
+  actionType       String // "create_expense" | "mark_salary_paid" | "create_purchase_order" | ...
+  payload          Json
+  status           String          @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedById     String?
+  reviewedAt       DateTime?
+  executedAt       DateTime?
+  resultRefId      String?
+  createdAt        DateTime        @default(now())
+
+  @@index([status, createdAt])
+  @@map("agent_actions")
+}

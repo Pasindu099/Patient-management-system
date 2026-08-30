@@ -1,0 +1,67 @@
+# Caddy automatically provisions & renews Let's Encrypt TLS certificates.
+{
+	email {$ACME_EMAIL}
+	servers {
+		# Don't advertise the server software in responses.
+		trusted_proxies static private_ranges
+	}
+}
+
+# ── Shared security headers ──────────────────────────────────────────
+# Applied to both sites via `import`.
+(security_headers) {
+	header {
+		# Force HTTPS for 2 years, including subdomains. Only safe because
+		# every Lumora host is already HTTPS-only behind this proxy.
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
+		# Block MIME-sniffing (stops a .txt upload being run as script).
+		X-Content-Type-Options "nosniff"
+
+		# Refuse to be framed — kills clickjacking overlays, which is exactly
+		# the class of attack the fake CAPTCHA belongs to.
+		X-Frame-Options "DENY"
+
+		# Don't leak patient-identifying paths to third parties via Referer.
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Turn off device APIs the apps never use.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=(), payment=(), usb=()"
+
+		# Strip stack fingerprinting.
+		-X-Powered-By
+		-Server
+	}
+}
+
+# Public marketing + booking site (root domain + www)
+{$SITE_DOMAIN}, www.{$SITE_DOMAIN} {
+	encode zstd gzip
+	import security_headers
+
+	# CSP in REPORT-ONLY first — watch the browser console for violations for
+	# a few days, then rename to `Content-Security-Policy` to enforce.
+	# 'unsafe-inline' is required for Next.js hydration until nonces are wired
+	# up in middleware; it is still worth shipping because default-src/
+	# frame-ancestors/object-src do the heavy lifting.
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+	reverse_proxy website:3001
+}
+
+# Staff practice-management system — patient data lives here.
+{$PMS_DOMAIN} {
+	encode zstd gzip
+	import security_headers
+
+	# Staff app is never legitimately embedded or indexed.
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		Cache-Control "no-store, no-cache, must-revalidate, private"
+	}
+
+	# Enforced CSP — no third-party origins are needed by the PMS at all.
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+	reverse_proxy pms:3000
+}

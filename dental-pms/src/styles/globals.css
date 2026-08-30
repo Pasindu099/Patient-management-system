@@ -1,0 +1,246 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background:         0 0% 100%;
+    --foreground:         224 71.4% 4.1%;
+    --card:               0 0% 100%;
+    --card-foreground:    224 71.4% 4.1%;
+    --primary:            221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary:          210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted:              210 40% 96%;
+    --muted-foreground:   215 16% 47%;
+    --accent:             210 40% 96%;
+    --accent-foreground:  222 47% 11%;
+    --destructive:        0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border:             214 32% 91%;
+    --input:              214 32% 91%;
+    --ring:               221 83% 53%;
+    --radius:             0.5rem;
+
+    /* Sidebar */
+    --sidebar-bg:         222 47% 11%;
+    --sidebar-width:      260px;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Slightly larger base to help senior readability */
+    font-size: 16px;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Ensure all interactive elements meet 44px minimum touch target */
+  button, a, input, select, textarea {
+    min-height: 40px;
+  }
+
+  /* Better focus rings — important for keyboard navigation */
+  *:focus-visible {
+    outline: 3px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Remove default focus for mouse users, keep for keyboard */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(215 16% 80%); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(215 16% 60%); }
+}
+
+@layer components {
+  /* ── Page wrapper ─────────────────────────────────────────────── */
+  .page-container {
+    @apply max-w-7xl mx-auto px-6 py-6;
+  }
+
+  /* ── Allergy alert banner — must be unmissable ─────────────────── */
+  .allergy-banner {
+    @apply bg-red-50 border-2 border-red-400 rounded-lg px-5 py-3
+           flex items-center gap-3;
+  }
+
+  /* ── Section card ─────────────────────────────────────────────── */
+  .section-card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+  }
+
+  .section-card-header {
+    @apply px-6 py-4 border-b border-gray-100 flex items-center justify-between;
+  }
+
+  .section-card-body {
+    @apply px-6 py-5;
+  }
+
+  /* ── Data row ─────────────────────────────────────────────────── */
+  .data-row {
+    @apply flex items-center justify-between py-3
+           border-b border-gray-100 last:border-0;
+  }
+
+  .data-label {
+    @apply text-sm text-gray-500 font-medium;
+  }
+
+  .data-value {
+    @apply text-base text-gray-900 font-medium text-right;
+  }
+
+  /* ── Status badges ─────────────────────────────────────────────── */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  /* ── Stat card (KPI) ──────────────────────────────────────────── */
+  .stat-card {
+    @apply bg-white rounded-xl border border-gray-200 p-5 shadow-sm;
+  }
+
+  .stat-card-label {
+    @apply text-sm text-gray-500 font-medium mb-1;
+  }
+
+  .stat-card-value {
+    @apply text-3xl font-bold text-gray-900;
+  }
+
+  .stat-card-sub {
+    @apply text-sm text-gray-500 mt-1;
+  }
+
+  /* ── Form styles ──────────────────────────────────────────────── */
+  .form-label {
+    @apply block text-base font-semibold text-gray-700 mb-1.5;
+  }
+
+  .form-input {
+    @apply w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg
+           focus:border-blue-500 focus:ring-0
+           placeholder:text-gray-400 text-gray-900
+           transition-colors duration-150;
+  }
+
+  .form-input:hover {
+    @apply border-gray-400;
+  }
+
+  .form-hint {
+    @apply text-sm text-gray-500 mt-1;
+  }
+
+  .form-error {
+    @apply text-sm text-red-600 mt-1 font-medium;
+  }
+
+  /* ── Primary button ───────────────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-lg text-base font-semibold
+           bg-blue-600 text-white
+           hover:bg-blue-700 active:bg-blue-800
+           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-150
+           min-h-[44px];
+  }
+
+  /* ── Secondary button ─────────────────────────────────────────── */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           px-5 py-3 rounded-lg text-base font-semibold
+           bg-white text-gray-700 border-2 border-gray-300
+           hover:bg-gray-50 hover:border-gray-400
+           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-400
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-150
+           min-h-[44px];
+  }
+
+  /* ── Danger button ────────────────────────────────────────────── */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2
+           px-5 py-3 rounded-lg text-base font-semibold
+           bg-red-600 text-white
+           hover:bg-red-700 active:bg-red-800
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-150
+           min-h-[44px];
+  }
+
+  /* ── Table ────────────────────────────────────────────────────── */
+  .data-table {
+    @apply w-full text-base;
+  }
+
+  .data-table th {
+    @apply px-4 py-3 text-left text-sm font-semibold text-gray-600 
+           bg-gray-50 border-b-2 border-gray-200;
+  }
+
+  .data-table td {
+    @apply px-4 py-4 text-base text-gray-900 border-b border-gray-100;
+  }
+
+  .data-table tr:hover td {
+    @apply bg-blue-50 cursor-pointer;
+  }
+}
+
+/* ── Sidebar active state ─────────────────────────────────────────── */
+.sidebar-link {
+  @apply flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium
+         text-slate-400 transition-all duration-150 cursor-pointer;
+}
+
+.sidebar-link:hover {
+  @apply bg-slate-800 text-white;
+}
+
+.sidebar-link.active {
+  @apply bg-blue-600 text-white shadow-md;
+}
+
+/* ── Page transition ─────────────────────────────────────────────── */
+.page-enter {
+  animation: fadeSlideIn 0.15s ease-out;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Print styles ────────────────────────────────────────────────── */
+@media print {
+  .no-print { display: none !important; }
+  .section-card { box-shadow: none; border: 1px solid #e5e7eb; }
+}
+
+@media print {
+  aside, nav, header, .no-print { display: none !important; }
+  #print-bill, #print-rx { display: block !important; }
+  * { color: black !important; background: white !important; box-shadow: none !important; }
+  #print-rx { page-break-before: always; }
+}
