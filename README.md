@@ -19,13 +19,12 @@ Full-stack dental clinic management project for Lumora Dental Studio. The reposi
 
 The internal dashboard handles patient records, appointments, queue management, visits, billing, prescriptions, inventory, staff settings, reports, reminders, and AI-assisted clinical workflows.
 
-Local URL: `http://localhost:3000`
+
 
 ### Lumora Website
 
 The public website presents Lumora Dental Studio and allows patients to book appointments. Booking data is written directly to the shared PMS database.
 
-Local URL: `http://localhost:3001`
 
 ## Tech Stack
 
