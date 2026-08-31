@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus, Trash2, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { showToast } from '@/components/ui/Toast'
@@ -13,6 +13,12 @@ interface PlanItem {
   currency:     'LKR' | 'USD'
   status:       'PLANNED' | 'COMPLETED' | 'DECLINED'
   phase:        number
+}
+
+interface CatalogFee {
+  id: string
+  name: string
+  priceCents: number
 }
 
 interface Props {
@@ -66,11 +72,47 @@ export function TreatmentPlanBuilder({ patientId, currentUser, onSaved }: Props)
   const [currency, setCurrency] = useState<'LKR' | 'USD'>('LKR')
   const [saving,   setSaving]   = useState(false)
   const [show,     setShow]     = useState(false)
+  const [catalog,  setCatalog]  = useState<CatalogFee[]>([])
 
   const totalFee = items.reduce((s, i) => s + i.fee, 0)
+  const procedureOptions = catalog.length > 0 ? catalog.map(f => f.name) : SL_PROCEDURES
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFees() {
+      try {
+        const res = await fetch('/api/fees')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data)) {
+          setCatalog(data.map((fee: any) => ({
+            id: fee.id,
+            name: fee.name,
+            priceCents: fee.priceCents ?? Math.round((fee.price ?? 0) * 100),
+          })))
+        }
+      } catch {}
+    }
+
+    loadFees()
+    return () => { cancelled = true }
+  }, [])
 
   function updateItem(id: string, field: keyof PlanItem, value: any) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i))
+  }
+
+  function updateProcedure(id: string, value: string) {
+    const match = catalog.find(f => f.name.toLowerCase() === value.trim().toLowerCase())
+    setItems(prev => prev.map(item => {
+      if (item.id !== id) return item
+      return {
+        ...item,
+        procedureName: value,
+        fee: currency === 'LKR' && match ? match.priceCents / 100 : item.fee,
+      }
+    }))
   }
 
   function removeItem(id: string) {
@@ -163,13 +205,13 @@ export function TreatmentPlanBuilder({ patientId, currentUser, onSaved }: Props)
                   <input
                     type="text"
                     value={item.procedureName}
-                    onChange={e => updateItem(item.id, 'procedureName', e.target.value)}
+                    onChange={e => updateProcedure(item.id, e.target.value)}
                     list="proc-list"
                     placeholder="Procedure…"
                     className="form-input !py-2 !text-sm"
                   />
                   <datalist id="proc-list">
-                    {SL_PROCEDURES.map(p => <option key={p} value={p} />)}
+                    {procedureOptions.map(p => <option key={p} value={p} />)}
                   </datalist>
                 </div>
                 <div className="col-span-5 sm:col-span-2">

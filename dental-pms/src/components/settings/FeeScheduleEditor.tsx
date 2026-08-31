@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Edit2, ChevronDown, ChevronRight, AlertCircle } from 'lucide-react'
+import { Check, Edit2, ChevronDown, ChevronRight, AlertCircle, Plus } from 'lucide-react'
 import { cn, formatLKR } from '@/lib/utils'
 import { showToast } from '@/components/ui/Toast'
 
@@ -34,7 +34,14 @@ export function FeeScheduleEditor({ grouped }: Props) {
   const [editingId,  setEditingId]  = useState<string | null>(null)
   const [editValue,  setEditValue]  = useState('')
   const [saving,     setSaving]     = useState<string | null>(null)
+  const [creating,   setCreating]   = useState(false)
   const [collapsed,  setCollapsed]  = useState<Record<string, boolean>>({})
+  const [newFee,     setNewFee]     = useState({
+    category:    '',
+    subcategory: '',
+    name:        '',
+    price:       '',
+  })
 
   function startEdit(fee: Fee) {
     setEditingId(fee.id)
@@ -70,23 +77,137 @@ export function FeeScheduleEditor({ grouped }: Props) {
     }
   }
 
+  async function addTreatment() {
+    const category = newFee.category.trim()
+    const name = newFee.name.trim()
+    const price = parseFloat(newFee.price) || 0
+
+    if (!category || !name) {
+      showToast('error', 'Add a category and treatment name')
+      return
+    }
+    if (price < 0) {
+      showToast('error', 'Price cannot be negative')
+      return
+    }
+
+    setCreating(true)
+    try {
+      const res = await fetch('/api/fees', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          category,
+          subcategory: newFee.subcategory.trim() || null,
+          name,
+          price,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to add treatment')
+
+      setFees(prev => ({
+        ...prev,
+        [data.category]: [...(prev[data.category] ?? []), data],
+      }))
+      setCollapsed(prev => ({ ...prev, [data.category]: false }))
+      setNewFee({ category: '', subcategory: '', name: '', price: '' })
+      showToast('success', `${data.name} added to the fee schedule`)
+    } catch (err: any) {
+      showToast('error', err.message || 'Failed to add treatment')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   function toggleCategory(cat: string) {
     setCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
 
   const categories = Object.keys(fees).sort()
+  const categorySuggestions = categories.map(category => (
+    <option key={category} value={category} />
+  ))
   const totalPriced = categories.flatMap(c => fees[c]).filter(f => f.price > 0).length
   const total       = categories.flatMap(c => fees[c]).length
+  const pricedWidth = total > 0 ? (totalPriced / total) * 100 : 0
 
   return (
     <div className="space-y-4">
+      <div className="section-card">
+        <div className="section-card-header">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Add treatment</h2>
+            <p className="text-sm text-gray-500">
+              New active treatments are available in visit treatment plans and inventory treatment setup.
+            </p>
+          </div>
+        </div>
+        <div className="section-card-body">
+          <div className="grid gap-3 sm:grid-cols-12">
+            <div className="sm:col-span-3">
+              <label className="form-label">Category</label>
+              <input
+                value={newFee.category}
+                onChange={e => setNewFee(prev => ({ ...prev, category: e.target.value }))}
+                list="fee-category-list"
+                placeholder="Restorative"
+                className="form-input"
+              />
+              <datalist id="fee-category-list">{categorySuggestions}</datalist>
+            </div>
+            <div className="sm:col-span-3">
+              <label className="form-label">Subcategory</label>
+              <input
+                value={newFee.subcategory}
+                onChange={e => setNewFee(prev => ({ ...prev, subcategory: e.target.value }))}
+                placeholder="Optional"
+                className="form-input"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <label className="form-label">Treatment</label>
+              <input
+                value={newFee.name}
+                onChange={e => setNewFee(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Treatment name"
+                className="form-input"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="form-label">Price (LKR)</label>
+              <input
+                type="number"
+                min="0"
+                step="500"
+                value={newFee.price}
+                onChange={e => setNewFee(prev => ({ ...prev, price: e.target.value }))}
+                placeholder="0"
+                className="form-input text-right"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={addTreatment}
+              disabled={creating}
+              className="btn-primary"
+            >
+              {creating
+                ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Adding...</>
+                : <><Plus className="w-4 h-4" />Add treatment</>}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Summary */}
       <div className="flex items-center gap-4 px-1">
         <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
           <div
             className="bg-green-500 h-full rounded-full transition-all"
-            style={{ width: `${(totalPriced / total) * 100}%` }}
+            style={{ width: `${pricedWidth}%` }}
           />
         </div>
         <span className="text-sm font-semibold text-gray-600 flex-shrink-0">

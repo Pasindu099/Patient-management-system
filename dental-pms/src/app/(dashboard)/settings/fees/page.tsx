@@ -39,14 +39,14 @@ export default async function FeeSchedulePage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fee Schedule</h1>
           <p className="text-base text-gray-500">
-            {pricedCount} of {fees.length} treatments have prices · prices auto-fill when selecting treatments during a visit
+            {pricedCount} of {fees.length} treatments have prices - prices auto-fill when selecting treatments during a visit
           </p>
         </div>
       </div>
 
       <div className="mt-2 mb-6 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-sm text-amber-700">
-        Treatments showing <strong>Rs. 0</strong> have no price yet — click the price to edit.
-        All 86 treatments from your clinic fee schedule are loaded.
+        Treatments showing <strong>Rs. 0</strong> have no price yet - click the price to edit.
+        Add new treatments here to make them available in visit treatment planning and inventory setup.
       </div>
 
       <FeeScheduleEditor grouped={JSON.parse(JSON.stringify(grouped))} />
