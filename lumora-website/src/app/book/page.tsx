@@ -3,12 +3,12 @@ import { BookingForm } from '@/components/BookingForm'
 import { Shield, Clock, Award } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Book a Dentist Appointment in Colombo',
-  description: 'Book a dental appointment online at Lumora Dental Studio in Colombo for check-ups, whitening, cosmetic dentistry, orthodontics, implants and emergency dental care.',
+  title: 'Book a Dentist Appointment in Minuwangoda',
+  description: 'Book a dental appointment online at Lumora Dental Studio in Minuwangoda for check-ups, whitening, cosmetic dentistry, orthodontics, implants and emergency dental care.',
   alternates: { canonical: '/book' },
   openGraph: {
-    title: 'Book a Dentist Appointment in Colombo | Lumora Dental Studio',
-    description: 'Choose a Lumora dentist, view available slots and book your Colombo dental appointment online.',
+    title: 'Book a Dentist Appointment in Minuwangoda | Lumora Dental Studio',
+    description: 'Choose a Lumora dentist, view available slots and book your dental appointment online.',
     url: '/book',
   },
 }
@@ -52,7 +52,7 @@ export default function BookPage() {
               {
                 icon:  Award,
                 title: 'Experienced Team',
-                desc:  'All doctors at Lumora are specialist qualified with over a decade of clinical experience.',
+                desc:  'Dr. Amitha Perera brings over 25 years of dental experience to every visit.',
               },
             ].map(item => (
               <div key={item.title} className="bg-white p-5 sm:p-6 border border-cream-dark">
@@ -67,9 +67,9 @@ export default function BookPage() {
             {/* Contact fallback */}
             <div className="bg-[#0B1F3A] p-6">
               <p className="text-xs tracking-widest uppercase text-gold mb-3">Prefer to call?</p>
-              <p className="text-white font-serif text-2xl mb-1">+94 11 234 5678</p>
-              <p className="text-white/50 text-xs">Mon–Sat · 9:00 AM – 7:00 PM</p>
-              <a href="https://wa.me/94112345678" target="_blank"
+              <p className="text-white font-serif text-2xl mb-1">0761662434</p>
+              <p className="text-white/50 text-xs">Mon-Sun · 9:00 AM - 8:00 PM</p>
+              <a href="https://wa.me/94761662434" target="_blank"
                 className="inline-block mt-4 text-xs tracking-widest uppercase text-gold hover:text-gold-light transition-colors">
                 WhatsApp us →
               </a>

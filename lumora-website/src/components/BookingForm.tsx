@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import {
+  AlertCircle, Calendar, Check, ChevronLeft, ChevronRight,
+  Clock, Copy, Loader2, Phone, Printer, Stethoscope,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const REASONS = [
@@ -59,6 +62,31 @@ function addDays(dateStr: string, amount: number) {
   const date = parseLocalDate(dateStr)
   date.setDate(date.getDate() + amount)
   return toDateKey(date)
+}
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+// The API hands back slot times as 24-hour "HH:MM" strings in clinic time, so
+// both helpers stay in plain string maths — no Date, no timezone surprises.
+function formatSlotTime(time: string) {
+  const [hours, minutes] = time.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
+function addMinutesToSlot(time: string, amount: number) {
+  const [hours, minutes] = time.split(':').map(Number)
+  const total = (hours * 60 + minutes + amount) % (24 * 60)
+  return formatSlotTime(`${Math.floor(total / 60)}:${total % 60}`)
+}
+
+function formatLongDate(dateStr: string) {
+  const date = parseLocalDate(dateStr)
+  return `${String(date.getDate()).padStart(2, '0')} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
 }
 
 function getTomorrowKey() {
@@ -168,6 +196,7 @@ export function BookingForm() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [refNumber, setRefNumber] = useState('')
+  const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -296,25 +325,132 @@ export function BookingForm() {
   }
 
   if (submitted) {
+    const appointmentTime = formatSlotTime(timeSlot)
+    const graceTime = addMinutesToSlot(timeSlot, 10)
+    const doctorName = doctors.find(doctor => doctor.id === doctorId)?.name ?? ''
+
+    const copyReference = async () => {
+      try {
+        await navigator.clipboard.writeText(refNumber)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        // Clipboard is unavailable on insecure origins — the number stays
+        // on screen, so there is nothing useful to tell the patient here.
+      }
+    }
+
     return (
-      <div className="bg-white border border-cream-dark p-5 sm:p-10 text-center">
-        <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-5">
-          <Check className="w-8 h-8 text-green-600" />
+      <div className="animate-fade-up">
+        <div className="bg-white border border-cream-dark shadow-sm print:shadow-none print:border-stone-light">
+
+          {/* Header band */}
+          <div className="bg-[#0B1F3A] px-6 sm:px-10 py-8 sm:py-10 text-center">
+            <div className="w-14 h-14 rounded-full bg-white/10 border border-gold/40 flex items-center justify-center mx-auto mb-5">
+              <Check className="w-7 h-7 text-gold-light" strokeWidth={2.5} />
+            </div>
+            <p className="text-[10px] sm:text-[11px] tracking-[0.32em] uppercase text-gold-light/80 mb-2">
+              Lumora Dental Studio
+            </p>
+            <h2 className="font-serif text-3xl sm:text-4xl text-white font-light">
+              Appointment Confirmed
+            </h2>
+          </div>
+
+          {/* Reference number */}
+          <div className="px-6 sm:px-10 pt-8 pb-7 text-center border-b border-dashed border-cream-dark">
+            <p className="text-[10px] tracking-[0.28em] uppercase text-stone-light mb-3">
+              Reference No.
+            </p>
+            <p className="font-serif text-3xl sm:text-4xl text-stone-dark tracking-[0.12em] break-all">
+              {refNumber}
+            </p>
+            <button
+              type="button"
+              onClick={copyReference}
+              className="inline-flex items-center gap-1.5 mt-4 text-[11px] tracking-widest uppercase text-gold hover:text-gold-dark transition-colors print:hidden"
+            >
+              {copied
+                ? <><Check className="w-3.5 h-3.5" /> Copied</>
+                : <><Copy className="w-3.5 h-3.5" /> Copy reference</>}
+            </button>
+          </div>
+
+          {/* Appointment details */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-cream-dark border-b border-cream-dark">
+            {[
+              { icon: Calendar,   label: 'Date',    value: formatLongDate(date) },
+              { icon: Clock,      label: 'Time',    value: appointmentTime },
+              { icon: Stethoscope, label: 'Dentist', value: doctorName || '—' },
+            ].map(item => (
+              <div key={item.label} className="px-6 sm:px-5 py-5 sm:py-6 text-center">
+                <item.icon className="w-4 h-4 text-gold mx-auto mb-2.5" />
+                <p className="text-[10px] tracking-[0.24em] uppercase text-stone-light mb-1.5">
+                  {item.label}
+                </p>
+                <p className="text-stone-dark font-medium text-sm sm:text-base leading-snug break-words">
+                  {item.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Message body */}
+          <div className="px-6 sm:px-10 py-8 space-y-5 text-stone text-sm leading-relaxed">
+            <p>
+              Thank you, <strong className="text-stone-dark font-medium">{firstName}</strong>.
+              Your appointment has been successfully confirmed.
+            </p>
+
+            <div className="bg-cream border-l-2 border-gold p-4 sm:p-5">
+              <p className="text-[10px] tracking-[0.24em] uppercase text-gold mb-2">
+                Please arrive on time
+              </p>
+              <p>
+                Your time slot will be held for 10 minutes after the scheduled time, until{' '}
+                <strong className="text-stone-dark font-medium">{graceTime}</strong>.
+                After {graceTime}, your priority for the appointment will expire and you will
+                be seen as a walk-in patient, according to the queue at that time.
+              </p>
+            </div>
+
+            <div className="bg-cream border-l-2 border-stone-light p-4 sm:p-5">
+              <p className="text-[10px] tracking-[0.24em] uppercase text-stone mb-2">
+                At reception
+              </p>
+              <p>
+                Please show a screenshot of this confirmation or provide your Reference No.{' '}
+                (<strong className="text-stone-dark font-medium">{refNumber}</strong>)
+                to confirm your appointment.
+              </p>
+            </div>
+
+            <p className="flex items-start gap-2.5">
+              <Phone className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+              <span>
+                If there are any changes to your appointment, our team will contact you by
+                phone or WhatsApp on{' '}
+                <strong className="text-stone-dark font-medium">{phone}</strong>.
+              </span>
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-cream px-6 sm:px-10 py-6 text-center border-t border-cream-dark">
+            <p className="font-serif text-lg sm:text-xl text-stone-dark">
+              We look forward to seeing you at Lumora Dental Studio.
+            </p>
+          </div>
         </div>
-        <h2 className="font-serif text-3xl text-stone-dark mb-2">Appointment Confirmed</h2>
-        <p className="text-gold text-sm tracking-widest uppercase mb-5">Reference: {refNumber}</p>
-        <p className="text-stone leading-relaxed mb-2">
-          Thank you, {firstName}. Your appointment is confirmed for{' '}
-          <strong>{date}</strong> at <strong>{timeSlot}</strong>.
-        </p>
-        <p className="text-stone leading-relaxed mb-8">
-          If anything changes, our team will reach you by phone or WhatsApp on{' '}
-          <strong>{phone}</strong>.
-        </p>
-        <div className="border-t border-cream-dark pt-6">
-          <p className="text-xs text-stone/50 tracking-wide">
-            Please save your reference number: <strong>{refNumber}</strong>
-          </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 mt-6 print:hidden">
+          <button type="button" onClick={() => window.print()} className="btn-outline flex-1">
+            <Printer className="w-4 h-4" />
+            Print / Save
+          </button>
+          <a href="/" className="btn-gold flex-1">
+            Back to Home
+          </a>
         </div>
       </div>
     )

@@ -21,9 +21,9 @@ npm run dev          # Start on http://localhost:3001
 DATABASE_URL="postgresql://dental_admin:change-me-local-only@localhost:5433/dental_pms"
 NEXT_PUBLIC_SITE_URL="http://localhost:3001"
 NEXT_PUBLIC_CLINIC_NAME="Lumora Dental Studio"
-NEXT_PUBLIC_CLINIC_PHONE="+94 11 234 5678"
-NEXT_PUBLIC_CLINIC_EMAIL="hello@lumoradental.lk"
-NEXT_PUBLIC_CLINIC_ADDRESS="45 Bauddhaloka Mawatha, Colombo 07"
+NEXT_PUBLIC_CLINIC_PHONE="0761662434"
+NEXT_PUBLIC_CLINIC_EMAIL="lumoradentalstudio@gmail.com"
+NEXT_PUBLIC_CLINIC_ADDRESS="151/B Negambo Road, Minuwangoda"
 ```
 
 ## How online booking slots work

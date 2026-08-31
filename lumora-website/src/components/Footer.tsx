@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Phone, Mail, MapPin, Instagram, Facebook } from 'lucide-react'
+import { Phone, Mail, MapPin, Instagram, Facebook, Linkedin } from 'lucide-react'
 
 export function Footer() {
   return (
@@ -18,16 +18,20 @@ export function Footer() {
             </div>
           </div>
           <p className="text-sm leading-relaxed text-white/50 max-w-xs">
-            Premium dental care crafted around you. Your smile is our studio.
+            Your one-stop dental destination for gentle, modern dental care.
           </p>
           <div className="flex gap-4 mt-6">
-            <a href="#" aria-label="Instagram"
+            <a href="https://www.instagram.com/lumoradentalstudio2026?igsi=MTV6bnBkb24wN2ZnaQ==" aria-label="Instagram" target="_blank" rel="noreferrer"
               className="w-9 h-9 border border-white/20 flex items-center justify-center hover:border-gold hover:text-gold transition-colors">
               <Instagram className="w-4 h-4" />
             </a>
-            <a href="#" aria-label="Facebook"
+            <a href="https://www.facebook.com/profile.php?id=61593978023102" aria-label="Facebook" target="_blank" rel="noreferrer"
               className="w-9 h-9 border border-white/20 flex items-center justify-center hover:border-gold hover:text-gold transition-colors">
               <Facebook className="w-4 h-4" />
+            </a>
+            <a href="https://www.linkedin.com/company/146178897/admin/dashboard/" aria-label="LinkedIn" target="_blank" rel="noreferrer"
+              className="w-9 h-9 border border-white/20 flex items-center justify-center hover:border-gold hover:text-gold transition-colors">
+              <Linkedin className="w-4 h-4" />
             </a>
           </div>
         </div>
@@ -59,27 +63,27 @@ export function Footer() {
           <ul className="space-y-4">
             <li className="flex items-start gap-3 text-sm text-white/50">
               <MapPin className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
-              <span>45 Bauddhaloka Mawatha,<br />Colombo 07, Sri Lanka</span>
+              <span>151/B Negambo Road,<br />Minuwangoda</span>
             </li>
             <li>
-              <a href="tel:+94112345678"
+              <a href="tel:+94761662434"
                 className="flex items-center gap-3 text-sm text-white/50 hover:text-gold transition-colors">
                 <Phone className="w-4 h-4 text-gold flex-shrink-0" />
-                +94 11 234 5678
+                0761662434
               </a>
             </li>
             <li>
-              <a href="mailto:hello@lumoradental.lk"
+              <a href="mailto:lumoradentalstudio@gmail.com"
                 className="flex items-center gap-3 text-sm text-white/50 hover:text-gold transition-colors">
                 <Mail className="w-4 h-4 text-gold flex-shrink-0" />
-                hello@lumoradental.lk
+                lumoradentalstudio@gmail.com
               </a>
             </li>
           </ul>
 
           <div className="mt-6 pt-6 border-t border-white/10">
-            <p className="text-xs text-white/30 tracking-wide">Monday – Saturday</p>
-            <p className="text-sm text-white/50 mt-1">9:00 AM – 7:00 PM</p>
+            <p className="text-xs text-white/30 tracking-wide">Monday - Sunday</p>
+            <p className="text-sm text-white/50 mt-1">9:00 AM - 8:00 PM</p>
           </div>
         </div>
       </div>

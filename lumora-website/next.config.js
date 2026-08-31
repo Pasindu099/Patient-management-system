@@ -8,6 +8,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob:",
   "font-src 'self'",
   "connect-src 'self'",
+  "frame-src https://www.google.com https://maps.google.com",
   "form-action 'self'",
   "base-uri 'self'",
   "frame-ancestors 'none'",

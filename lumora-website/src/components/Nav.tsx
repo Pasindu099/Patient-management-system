@@ -62,11 +62,11 @@ export function Nav() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-5">
-          <a href="tel:+94112345678"
+          <a href="tel:+94761662434"
             className={`flex items-center gap-2 text-xs tracking-widest uppercase font-medium transition-colors
               ${solid ? 'text-stone hover:text-gold' : 'text-white/80 hover:text-white'}`}>
             <Phone className="w-3.5 h-3.5" />
-            +94 11 234 5678
+            0761662434
           </a>
           <Link href="/book"
             className="px-6 py-3 bg-gold text-white text-xs tracking-widest uppercase font-medium

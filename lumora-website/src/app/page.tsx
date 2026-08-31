@@ -58,27 +58,27 @@ const GALLERY_ITEMS = [
 ]
 
 const STATS = [
-  { value: '15+', label: 'Years of excellence' },
+  { value: '25+', label: 'Years of excellence' },
   { value: '8,000+', label: 'Smiles transformed' },
-  { value: '3', label: 'Expert doctors' },
-  { value: '98%', label: 'Patient satisfaction' },
+  { value: '20+', label: 'Dental treatments' },
+  { value: '2', label: 'Convenient locations' },
 ]
 
 const TESTIMONIALS = [
   {
     name: 'Priyanka Fernando',
     rating: 5,
-    text: 'The most comfortable dental experience I have ever had. The studio is beautiful, the team is gentle, and my smile has never looked better.',
+    text: 'Dr. Amitha Perera gave me the most comfortable dental experience I have ever had. He was gentle, reassuring, and my smile has never looked better.',
   },
   {
     name: 'Rohan Wickramasinghe',
     rating: 5,
-    text: 'I was always anxious about dental visits. Lumora completely changed that. Professional, calm, and genuinely caring.',
+    text: 'I was always anxious about dental visits. Dr. Amitha Perera completely changed that with his calm manner, professionalism, and genuine care.',
   },
   {
     name: 'Ayesha Nizam',
     rating: 5,
-    text: 'My veneers look absolutely natural. Dr. Perera understood exactly what I wanted. Highly recommend to anyone looking for cosmetic work.',
+    text: 'My veneers look absolutely natural. Dr. Amitha Perera understood exactly what I wanted and delivered a result that feels completely like me.',
   },
 ]
 
@@ -91,21 +91,21 @@ const dentistSchema = {
   url: process.env.NEXT_PUBLIC_SITE_URL || 'https://lumoradental.lk',
   logo: '/logo.png',
   image: '/images/about-clinic.jpg',
-  telephone: '+94 11 234 5678',
-  email: 'hello@lumoradental.lk',
+  telephone: '+94 76 166 2434',
+  email: 'lumoradentalstudio@gmail.com',
   priceRange: '$$',
   address: {
     '@type': 'PostalAddress',
-    streetAddress: '45 Bauddhaloka Mawatha',
-    addressLocality: 'Colombo 07',
+    streetAddress: '151/B Negambo Road',
+    addressLocality: 'Minuwangoda',
     addressCountry: 'LK',
   },
   openingHoursSpecification: [
     {
       '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
       opens: '09:00',
-      closes: '19:00',
+      closes: '20:00',
     },
   ],
   medicalSpecialty: [
@@ -116,7 +116,11 @@ const dentistSchema = {
     'Emergency Dental Care',
     'Family Dentistry',
   ],
-  sameAs: [],
+  sameAs: [
+    'https://www.facebook.com/profile.php?id=61593978023102',
+    'https://www.instagram.com/lumoradentalstudio2026?igsi=MTV6bnBkb24wN2ZnaQ==',
+    'https://www.linkedin.com/company/146178897/admin/dashboard/',
+  ],
 }
 
 export default function HomePage() {
@@ -142,7 +146,7 @@ export default function HomePage() {
         <div className="relative text-center px-6 max-w-4xl mx-auto">
           {/* Eyebrow */}
           <p className="text-xs tracking-[0.5em] uppercase text-gold mb-6 animate-fade-in">
-            Colombo's Premium Dental Studio
+            Your one-stop dental destination
           </p>
 
           {/* Headline */}
@@ -273,18 +277,16 @@ export default function HomePage() {
               </h2>
               <div className="w-12 h-px bg-gold my-6" />
               <p className="text-stone leading-relaxed mb-5">
-                Founded over 15 years ago, Lumora Dental Studio was created with a singular belief — that dental care should feel as good as it looks. We combine the precision of modern dentistry with an environment designed to put even the most anxious patient at ease.
+                Founded over 25 years ago, Lumora Dental Studio was created with a singular belief — that dental care should feel as good as it looks. We combine the precision of modern dentistry with an environment designed to put even the most anxious patient at ease.
               </p>
               <p className="text-stone leading-relaxed mb-8">
-                Our team of specialist dentists, hygienists and support staff are united by a commitment to continuing education, genuine patient care, and results that stand the test of time.
+                Our team of excellent dentists and staff are united by a commitment to continuing education, genuine patient care, and results that stand the test of time.
               </p>
 
               {/* Doctor cards */}
               <div className="space-y-4">
                 {[
-                  { name: 'Dr. W.A.K. Perera',  title: 'Principal Dentist & Cosmetic Specialist', exp: '20+ years' },
-                  { name: 'Dr. Nimali Silva',    title: 'Oral Surgeon & Implantologist',           exp: '12 years' },
-                  { name: 'Dr. Saman Perera',    title: 'Orthodontist',                            exp: '10 years' },
+                  { name: 'Dr. Amitha Perera', title: 'Dental Surgeon', exp: '25+ years' },
                 ].map(doc => (
                   <div key={doc.name} className="flex items-center gap-4 p-4 bg-cream border border-cream-dark">
                     <div className="w-12 h-12 bg-gold/20 flex items-center justify-center flex-shrink-0 text-gold font-serif text-lg">
@@ -389,10 +391,10 @@ export default function HomePage() {
 
               <div className="space-y-6">
                 {[
-                  { icon: MapPin, label: 'Address',       value: '45 Bauddhaloka Mawatha, Colombo 07, Sri Lanka', href: null },
-                  { icon: Phone,  label: 'Phone',         value: '+94 11 234 5678', href: 'tel:+94112345678' },
-                  { icon: Mail,   label: 'Email',         value: 'hello@lumoradental.lk', href: 'mailto:hello@lumoradental.lk' },
-                  { icon: Clock,  label: 'Opening Hours', value: 'Monday – Saturday  ·  9:00 AM – 7:00 PM', href: null },
+                  { icon: MapPin, label: 'Address',       value: '151/B Negambo Road, Minuwangoda', href: null },
+                  { icon: Phone,  label: 'Phone',         value: '0761662434', href: 'tel:+94761662434' },
+                  { icon: Mail,   label: 'Email',         value: 'lumoradentalstudio@gmail.com', href: 'mailto:lumoradentalstudio@gmail.com' },
+                  { icon: Clock,  label: 'Opening Hours', value: 'Monday - Sunday · 9:00 AM - 8:00 PM', href: null },
                 ].map(item => (
                   <div key={item.label} className="flex gap-4">
                     <div className="w-10 h-10 bg-cream-dark flex items-center justify-center flex-shrink-0">
@@ -416,14 +418,20 @@ export default function HomePage() {
               </div>
             </ScrollReveal>
 
-            {/* Map placeholder */}
+            {/* Map */}
             <ScrollReveal delay={150}>
-              <div className="h-full min-h-[400px] bg-cream-dark flex items-center justify-center">
-                <div className="text-center text-stone/40">
-                  <MapPin className="w-12 h-12 mx-auto mb-3" />
-                  <p className="text-sm tracking-widest uppercase">Embed Google Map here</p>
-                  <p className="text-xs mt-2">Replace with Google Maps iframe</p>
-                </div>
+              <div className="h-full min-h-[400px] bg-cream-dark overflow-hidden">
+                <iframe
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d480.74010111443664!2d79.94438824685199!3d7.1701965420783695!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae2e5393a21aac1%3A0x5d1999f361954d0!2sDentist%20-%20Dr.Perera!5e0!3m2!1sen!2sde!4v1788113563732!5m2!1sen!2sde"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  title="Lumora Dental Studio location"
+                  className="min-h-[400px] w-full"
+                />
               </div>
             </ScrollReveal>
           </div>
