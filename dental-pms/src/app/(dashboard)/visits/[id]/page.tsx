@@ -204,7 +204,7 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
           <div className="flex items-center gap-3 bg-red-50 border-2 border-red-500 rounded-xl px-5 py-3 no-print">
             <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
             <p className="text-base font-bold text-red-900">
-              Allergy: {allergies.map((a: any) => `${a.substance} (${a.reaction})`).join(' · ')}
+              Allergy: {allergies.map((a: any) => `${a.substance} (${a.reaction})`).join(' | ')}
             </p>
           </div>
         )}
@@ -217,8 +217,8 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{visit.visitNumber}</h1>
               <p className="text-base text-gray-500">
-                {formatDateTime(visit.visitDate)} · Dr. {visit.doctor.name}
-                {visit.branch ? ` · ${visit.branch.name}` : ''}
+                {formatDateTime(visit.visitDate)} | Dr. {visit.doctor.name}
+                {visit.branch ? ` | ${visit.branch.name}` : ''}
               </p>
             </div>
             <span className={cn(
@@ -676,7 +676,7 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
                   <span className="font-bold text-lg">{i + 1}.</span>
                   <div className="flex-1">
                     <p className="font-bold text-base">{item.drugName}</p>
-                    <p className="text-sm">Dose: {item.dose} · {item.frequency} · {item.duration}</p>
+                    <p className="text-sm">Dose: {item.dose} | {item.frequency} | {item.duration}</p>
                     {item.instructions && <p className="text-sm italic mt-0.5">{item.instructions}</p>}
                   </div>
                   <div className="text-right text-sm">

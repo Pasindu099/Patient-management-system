@@ -332,6 +332,12 @@ export default async function NewVisitPage({ searchParams }: Props) {
       feeId: item.feeId ?? undefined,
     }))
   )
+  const patientSummary = [
+    patient.patientNumber,
+    `${getAge(patient.dateOfBirth)} yrs`,
+    patient.gender,
+    patient.nicNumber ? `NIC: ${patient.nicNumber}` : null,
+  ].filter(Boolean).join(' | ')
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5">
@@ -347,7 +353,7 @@ export default async function NewVisitPage({ searchParams }: Props) {
           <div>
             <p className="text-base font-bold text-red-900">⚠️ Allergy Alert</p>
             <p className="text-base text-red-700">
-              {allergies.map((a: any) => `${a.substance} — ${a.reaction}`).join(' · ')}
+              {allergies.map((a: any) => `${a.substance} - ${a.reaction}`).join(' | ')}
             </p>
           </div>
         </div>
@@ -361,10 +367,7 @@ export default async function NewVisitPage({ searchParams }: Props) {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{getPatientDisplayName(patient)}</h1>
-              <p className="text-base text-gray-500">
-                {patient.patientNumber} · {getAge(patient.dateOfBirth)} yrs · {patient.gender}
-                {patient.nicNumber ? ` · NIC: ${patient.nicNumber}` : ''}
-              </p>
+              <p className="text-base text-gray-500">{patientSummary}</p>
             </div>
             <div className="flex items-center gap-3">
               {outstandingBalanceCents > 0 && (
