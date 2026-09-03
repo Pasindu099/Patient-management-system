@@ -13,49 +13,6 @@ import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }>; searchParams: Promise<{ print?: string }> }
 
-const PRINT_UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11]
-const PRINT_UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28]
-const PRINT_LOWER_RIGHT = [48, 47, 46, 45, 44, 43, 42, 41]
-const PRINT_LOWER_LEFT = [31, 32, 33, 34, 35, 36, 37, 38]
-const PRINT_ALL_TEETH = [...PRINT_UPPER_RIGHT, ...PRINT_UPPER_LEFT, ...PRINT_LOWER_RIGHT, ...PRINT_LOWER_LEFT]
-
-const PRINT_TOOTH_CONDITIONS: Record<string, { label: string; color: string; border: string }> = {
-  healthy:   { label: 'Healthy', color: '#ffffff', border: '#cbd5e1' },
-  caries:    { label: 'Caries', color: '#fee2e2', border: '#ef4444' },
-  filled:    { label: 'Filled', color: '#dbeafe', border: '#3b82f6' },
-  crown:     { label: 'Crown', color: '#fef3c7', border: '#d97706' },
-  rootcanal: { label: 'Root Canal', color: '#ede9fe', border: '#7c3aed' },
-  extracted: { label: 'Extracted', color: '#f1f5f9', border: '#64748b' },
-  missing:   { label: 'Missing', color: '#f8fafc', border: '#cbd5e1' },
-  implant:   { label: 'Implant', color: '#dcfce7', border: '#16a34a' },
-  fracture:  { label: 'Fracture', color: '#ffedd5', border: '#ea580c' },
-  watch:     { label: 'Watch', color: '#fef9c3', border: '#ca8a04' },
-  bridge:    { label: 'Bridge', color: '#dbeafe', border: '#2563eb' },
-  denture:   { label: 'Denture', color: '#f0fdf4', border: '#16a34a' },
-}
-
-type PrintableToothState = {
-  condition?: string
-  notes?: string
-  selected?: boolean
-}
-
-function printableToothFindings(value: unknown): Record<string, PrintableToothState> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return value as Record<string, PrintableToothState>
-}
-
-function conditionForPrint(state?: PrintableToothState) {
-  return PRINT_TOOTH_CONDITIONS[state?.condition ?? 'healthy'] ?? PRINT_TOOTH_CONDITIONS.healthy
-}
-
-function hasPrintableFindings(findings: Record<string, PrintableToothState>) {
-  return PRINT_ALL_TEETH.some(number => {
-    const state = findings[String(number)]
-    return state?.selected || (!!state?.condition && state.condition !== 'healthy') || !!state?.notes
-  })
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const v = await prisma.visit.findUnique({ where: { id }, select: { visitNumber: true } })
@@ -128,19 +85,6 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
   const branchAddress   = [visit.branch?.address, visit.branch?.city].filter(Boolean).join(', ')
   const paidTotal       = invoice?.payments.reduce((sum, payment) => sum + payment.amount, 0) ?? 0
   const generatedAt     = new Date()
-  const toothFindings   = printableToothFindings(visit.toothFindings)
-  const showToothChart  = hasPrintableFindings(toothFindings)
-  const pendingTreatmentItems = visit.patient.treatmentPlans.flatMap(plan =>
-    plan.items.map(item => ({
-      id:          item.id,
-      planTitle:   plan.title,
-      description: item.procedureName,
-      tooth:       item.toothNumbers,
-      amount:      item.patientEst || item.fee,
-    }))
-  )
-  const pendingTreatmentTotal = pendingTreatmentItems.reduce((sum, item) => sum + item.amount, 0)
-  const contractTotalDue = (invoice?.balance ?? 0) + pendingTreatmentTotal
 
   return (
     <>
@@ -149,11 +93,97 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
         dangerouslySetInnerHTML={{
           __html: `
             @media print {
-              @page { size: A4; margin: 12mm; }
+              @page { size: A4; margin: 0; }
               body[data-print-target="bill"] #print-rx { display: none !important; }
               body[data-print-target="prescription"] #print-bill { display: none !important; }
               .print-document { color: #111827; font-family: Arial, Helvetica, sans-serif; }
               .print-document * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              #print-bill { padding: 12mm; }
+              #print-rx {
+                width: 210mm;
+                height: 297mm;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 54mm 24mm 42mm 24mm;
+                color: #111;
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 11pt;
+                line-height: 1.35;
+              }
+              #print-rx .rx-pad-content {
+                height: 201mm;
+                overflow: hidden;
+              }
+              #print-rx .rx-pad-meta {
+                display: grid;
+                grid-template-columns: 1fr 32mm 42mm;
+                gap: 7mm;
+                align-items: end;
+                margin-bottom: 10mm;
+                font-size: 10.5pt;
+              }
+              #print-rx .rx-pad-field {
+                border-bottom: 0.25mm solid #444;
+                min-height: 8mm;
+                padding-bottom: 1.5mm;
+              }
+              #print-rx .rx-pad-label {
+                display: block;
+                margin-bottom: 0.8mm;
+                color: #555;
+                font-size: 7.5pt;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+              }
+              #print-rx .rx-pad-allergy {
+                margin-bottom: 7mm;
+                border: 0.25mm solid #111;
+                padding: 2.5mm 3mm;
+                font-size: 10pt;
+                font-weight: 700;
+              }
+              #print-rx .rx-pad-symbol {
+                margin-bottom: 5mm;
+                font-family: Georgia, 'Times New Roman', serif;
+                font-size: 25pt;
+                font-weight: 700;
+              }
+              #print-rx .rx-pad-items {
+                display: grid;
+                gap: 4.5mm;
+              }
+              #print-rx .rx-pad-item {
+                display: grid;
+                grid-template-columns: 9mm 1fr 24mm;
+                gap: 3mm;
+                break-inside: avoid;
+              }
+              #print-rx .rx-pad-number {
+                padding-top: 0.4mm;
+                font-weight: 700;
+              }
+              #print-rx .rx-pad-drug {
+                font-size: 13pt;
+                font-weight: 700;
+              }
+              #print-rx .rx-pad-sig {
+                margin-top: 1mm;
+                font-size: 10.5pt;
+              }
+              #print-rx .rx-pad-qty {
+                padding-top: 0.8mm;
+                font-size: 10pt;
+                font-weight: 700;
+                text-align: right;
+              }
+              #print-rx .rx-pad-notes {
+                margin-top: 8mm;
+                border-top: 0.25mm solid #bbb;
+                padding-top: 3mm;
+                font-size: 10.5pt;
+                font-weight: 600;
+              }
             }
           `,
         }}
@@ -562,189 +592,56 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
 
       {/* ── PRINTABLE PRESCRIPTION ─────────────────────────────────────────── */}
       {prescription && (
-        <div id="print-rx" className="print-document hidden print:block max-w-[760px] mx-auto text-black">
-          <div className="rounded-2xl border border-gray-300 overflow-hidden">
-            <div className="px-8 py-6 border-b border-gray-200 flex items-start justify-between gap-6">
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-blue-700 font-bold">Prescription</p>
-                <h1 className="text-3xl font-bold text-gray-950 mt-1">{branchName}</h1>
-                <p className="text-base font-semibold text-gray-800 mt-2">Dr. {visit.doctor.name}</p>
-                {branchAddress && <p className="text-sm text-gray-600">{branchAddress}</p>}
-                {visit.branch?.phone && <p className="text-sm text-gray-600">Tel: {visit.branch.phone}</p>}
+        <div id="print-rx" className="print-document hidden print:block text-black">
+          <div className="rx-pad-content">
+            <div className="rx-pad-meta">
+              <div className="rx-pad-field">
+                <span className="rx-pad-label">Patient</span>
+                {patientName}
               </div>
-              <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-right min-w-44">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Rx no.</p>
-                <p className="text-lg font-bold font-mono text-gray-950">{prescription.prescriptionNumber}</p>
-                <p className="text-sm text-gray-600 mt-1">{formatDate(prescription.createdAt)}</p>
+              <div className="rx-pad-field">
+                <span className="rx-pad-label">Age</span>
+                {getAge(visit.patient.dateOfBirth)} yrs
               </div>
-            </div>
-
-            <div className="px-8 py-6">
-              <div className="grid grid-cols-3 gap-4 rounded-xl bg-gray-50 border border-gray-200 p-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Patient</p>
-                  <p className="mt-1 text-lg font-bold text-gray-950">{patientName}</p>
-                  <p className="text-sm text-gray-600">{visit.patient.patientNumber}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Age</p>
-                  <p className="mt-1 text-lg font-bold text-gray-950">{getAge(visit.patient.dateOfBirth)} years</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Visit</p>
-                  <p className="mt-1 text-lg font-bold text-gray-950">{visit.visitNumber}</p>
-                  <p className="text-sm text-gray-600">{formatDate(visit.visitDate)}</p>
-                </div>
-              </div>
-
-              {(visit.diagnosis || allergies.length > 0) && (
-                <div className="mt-5 grid grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-gray-200 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Diagnosis</p>
-                    <p className="mt-1 text-sm font-semibold text-gray-950">{visit.diagnosis ?? 'Not recorded'}</p>
-                  </div>
-                  <div className={cn(
-                    'rounded-xl border p-4',
-                    allergies.length > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'
-                  )}>
-                    <p className={cn(
-                      'text-xs font-bold uppercase tracking-wide',
-                      allergies.length > 0 ? 'text-red-700' : 'text-gray-500'
-                    )}>Allergies</p>
-                    <p className="mt-1 text-sm font-semibold text-gray-950">
-                      {allergies.length > 0
-                        ? allergies.map((a: any) => `${a.substance}${a.reaction ? ` (${a.reaction})` : ''}`).join(', ')
-                        : 'No allergies recorded'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6 space-y-3">
-                {prescription.items.map((item, i) => (
-                  <div key={item.id} className="rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="bg-gray-100 px-4 py-3 flex items-start justify-between gap-4">
-                      <div className="flex gap-3">
-                        <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{i + 1}</span>
-                        <div>
-                          <p className="text-lg font-bold text-gray-950">{item.drugName}</p>
-                          <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                        </div>
-                      </div>
-                      <p className="text-sm font-bold text-gray-950">{item.duration}</p>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3 px-4 py-3 text-sm">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Dose</p>
-                        <p className="font-semibold text-gray-950">{item.dose}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Frequency</p>
-                        <p className="font-semibold text-gray-950">{item.frequency}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Instructions</p>
-                        <p className="font-semibold text-gray-950">{item.instructions || '-'}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {prescription.notes && (
-                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Doctor instructions</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-950">{prescription.notes}</p>
-                </div>
-              )}
-
-              {showToothChart && (
-                <PrintableToothChart findings={toothFindings} />
-              )}
-
-              {(pendingTreatmentItems.length > 0 || (invoice?.balance ?? 0) > 0) && (
-                <div className="mt-6 rounded-2xl border-2 border-gray-950 overflow-hidden">
-                  <div className="bg-gray-950 text-white px-5 py-4 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.22em] text-gray-300">Patient acknowledgement</p>
-                      <h2 className="text-xl font-bold mt-1">Pending treatment and due balance</h2>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-300">Total pending value</p>
-                      <p className="text-2xl font-bold">Rs. {contractTotalDue.toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-5 space-y-4">
-                    {pendingTreatmentItems.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Treatments still to be completed</p>
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-gray-100 text-xs uppercase tracking-wide text-gray-500">
-                              <th className="px-3 py-2 text-left rounded-l-lg">Treatment</th>
-                              <th className="px-3 py-2 text-center">Tooth</th>
-                              <th className="px-3 py-2 text-right rounded-r-lg">Pending amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pendingTreatmentItems.map(item => (
-                              <tr key={item.id} className="border-b border-gray-100">
-                                <td className="px-3 py-2">
-                                  <p className="font-semibold text-gray-950">{item.description}</p>
-                                  <p className="text-xs text-gray-500">{item.planTitle}</p>
-                                </td>
-                                <td className="px-3 py-2 text-center text-gray-700">{item.tooth || '-'}</td>
-                                <td className="px-3 py-2 text-right font-bold text-gray-950">Rs. {item.amount.toLocaleString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {invoice && invoice.balance > 0 && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                        <div className="flex justify-between gap-4">
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-wide text-red-700">Current bill balance</p>
-                            <p className="text-sm font-semibold text-gray-950 mt-1">Invoice {invoice.invoiceNumber}</p>
-                            <p className="text-xs text-gray-600">This is the unpaid amount from today's bill.</p>
-                          </div>
-                          <p className="text-xl font-bold text-red-800">Rs. {invoice.balance.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-xs leading-relaxed text-gray-700">
-                      I acknowledge that the above treatment plan, pending treatment charges, and any current bill balance have been explained to me. I understand that the final amount may change if the doctor changes the treatment plan, adds new procedures, or changes the treatment duration.
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-10 pt-6 text-sm text-gray-700">
-                      <div className="border-t border-gray-500 pt-2">
-                        Patient / guardian signature
-                      </div>
-                      <div className="border-t border-gray-500 pt-2">
-                        Clinic representative
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-12 grid grid-cols-[1fr_220px] gap-12 items-end">
-                <div className="text-xs text-gray-500">
-                  <p>Generated {formatDateTime(generatedAt)}</p>
-                  <p>Bring this prescription to the next visit if requested by the doctor.</p>
-                </div>
-                <div className="text-center">
-                  <div className="border-t border-gray-500 pt-2">
-                    <p className="text-sm font-semibold text-gray-950">Dr. {visit.doctor.name}</p>
-                    <p className="text-xs text-gray-500">Signature and stamp</p>
-                  </div>
-                </div>
+              <div className="rx-pad-field">
+                <span className="rx-pad-label">Date</span>
+                {formatDate(prescription.createdAt)}
               </div>
             </div>
+
+            {allergies.length > 0 && (
+              <div className="rx-pad-allergy">
+                Allergy: {allergies.map((a: any) => `${a.substance}${a.reaction ? ` (${a.reaction})` : ''}`).join(', ')}
+              </div>
+            )}
+
+            <div className="rx-pad-symbol">Rx</div>
+
+            <div className="rx-pad-items">
+              {prescription.items.map((item, i) => (
+                <div key={item.id} className="rx-pad-item">
+                  <div className="rx-pad-number">{i + 1}.</div>
+                  <div>
+                    <div className="rx-pad-drug">{item.drugName}</div>
+                    <div className="rx-pad-sig">
+                      {[
+                        item.dose,
+                        item.frequency,
+                        item.duration,
+                        item.instructions,
+                      ].filter(Boolean).join(' - ')}
+                    </div>
+                  </div>
+                  <div className="rx-pad-qty">Qty: {item.quantity}</div>
+                </div>
+              ))}
+            </div>
+
+            {prescription.notes && (
+              <div className="rx-pad-notes">
+                {prescription.notes}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -809,114 +706,4 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
       )}
     </>
   )
-}
-
-function PrintableToothChart({ findings }: { findings: Record<string, PrintableToothState> }) {
-  const selectedTeeth = PRINT_ALL_TEETH
-    .map(number => ({ number, state: findings[String(number)] }))
-    .filter(({ state }) => state?.selected || (!!state?.condition && state.condition !== 'healthy') || !!state?.notes)
-
-  return (
-    <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/40 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Tooth chart</p>
-          <p className="mt-1 text-sm font-semibold text-gray-950">Marked findings explained during this visit</p>
-        </div>
-        <p className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700 ring-1 ring-blue-200">
-          FDI numbering
-        </p>
-      </div>
-
-      <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-          <PrintQuadrantLabel side="UR" label="Upper right" />
-          <PrintArchLabel label="Upper arch" />
-          <PrintQuadrantLabel side="UL" label="Upper left" align="right" />
-        </div>
-        <div className="mt-2 grid grid-cols-[1fr_auto_1fr] gap-2">
-          <PrintQuadrant numbers={PRINT_UPPER_RIGHT} findings={findings} />
-          <div className="w-px bg-gray-300" />
-          <PrintQuadrant numbers={PRINT_UPPER_LEFT} findings={findings} />
-        </div>
-
-        <div className="my-3 flex items-center gap-3">
-          <div className="h-px flex-1 bg-gray-300" />
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-rose-600">
-            Midline
-          </span>
-          <div className="h-px flex-1 bg-gray-300" />
-        </div>
-
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
-          <PrintQuadrant numbers={PRINT_LOWER_RIGHT} findings={findings} />
-          <div className="w-px bg-gray-300" />
-          <PrintQuadrant numbers={PRINT_LOWER_LEFT} findings={findings} />
-        </div>
-        <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-          <PrintQuadrantLabel side="LR" label="Lower right" />
-          <PrintArchLabel label="Lower arch" />
-          <PrintQuadrantLabel side="LL" label="Lower left" align="right" />
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-        {selectedTeeth.map(({ number, state }) => {
-          const condition = conditionForPrint(state)
-          return (
-            <div key={number} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-              <p className="font-bold text-gray-950">
-                Tooth {number}: <span style={{ color: condition.border }}>{condition.label}</span>
-              </p>
-              {state?.notes && <p className="mt-0.5 font-semibold text-gray-600">{state.notes}</p>}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function PrintQuadrant({ numbers, findings }: { numbers: number[]; findings: Record<string, PrintableToothState> }) {
-  return (
-    <div className="grid grid-cols-8 gap-1">
-      {numbers.map(number => {
-        const state = findings[String(number)]
-        const condition = conditionForPrint(state)
-        const marked = state?.selected || (!!state?.condition && state.condition !== 'healthy') || !!state?.notes
-
-        return (
-          <div key={number} className="text-center">
-            <div className="text-[10px] font-bold text-gray-500">{number}</div>
-            <div
-              className={cn(
-                'mx-auto mt-1 flex h-7 w-5 items-center justify-center rounded-b-md rounded-t-sm border text-[9px] font-bold',
-                marked ? 'ring-2 ring-blue-200' : ''
-              )}
-              style={{
-                backgroundColor: condition.color,
-                borderColor: marked ? condition.border : '#cbd5e1',
-                color: marked ? condition.border : '#9ca3af',
-              }}
-            >
-              {marked ? 'X' : ''}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function PrintQuadrantLabel({ side, label, align = 'left' }: { side: string; label: string; align?: 'left' | 'right' }) {
-  return (
-    <div className={cn('flex items-center gap-2', align === 'right' && 'justify-end')}>
-      <span className="rounded-md bg-gray-950 px-2 py-1 text-[10px] font-bold text-white">{side}</span>
-      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{label}</span>
-    </div>
-  )
-}
-
-function PrintArchLabel({ label }: { label: string }) {
-  return <span className="w-20 text-center text-[10px] font-bold uppercase tracking-wide text-gray-400">{label}</span>
 }
