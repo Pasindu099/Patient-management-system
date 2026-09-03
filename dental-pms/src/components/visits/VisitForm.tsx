@@ -13,18 +13,32 @@ import { ToothChart, ToothState, TOOTH_CONDITIONS } from '@/components/visits/To
 import { TreatmentPlanStep, getPlanEntries, emptyProc, type Proc, type Fee } from '@/components/visits/TreatmentPlanStep'
 
 const SL_DRUGS = [
-  { name: 'Amoxicillin 500mg',       dose: '500mg',  frequency: 'Three times daily',             duration: '5 days' },
-  { name: 'Metronidazole 400mg',      dose: '400mg',  frequency: 'Three times daily',             duration: '5 days' },
-  { name: 'Ibuprofen 400mg',          dose: '400mg',  frequency: 'Three times daily after meals', duration: '3 days' },
-  { name: 'Paracetamol 500mg',        dose: '500mg',  frequency: 'Three times daily',             duration: '3 days' },
-  { name: 'Chlorhexidine mouthwash',  dose: '10ml',   frequency: 'Twice daily',                   duration: '7 days' },
-  { name: 'Diclofenac 50mg',          dose: '50mg',   frequency: 'Twice daily after meals',       duration: '3 days' },
-  { name: 'Clindamycin 150mg',        dose: '150mg',  frequency: 'Four times daily',              duration: '5 days' },
-  { name: 'Dexamethasone 0.5mg',      dose: '0.5mg',  frequency: 'Once daily',                    duration: '3 days' },
-  { name: 'Omeprazole 20mg',          dose: '20mg',   frequency: 'Once daily before meals',       duration: '5 days' },
+  { name: 'Amoxicillin 500mg',       dose: '500mg',  frequency: 'Three times per day', duration: '5 days' },
+  { name: 'Metronidazole 400mg',      dose: '400mg',  frequency: 'Three times per day', duration: '5 days' },
+  { name: 'Ibuprofen 400mg',          dose: '400mg',  frequency: 'Three times per day', duration: '3 days', mealRelation: 'After meals' },
+  { name: 'Paracetamol 500mg',        dose: '500mg',  frequency: 'Three times per day', duration: '3 days' },
+  { name: 'Chlorhexidine mouthwash',  dose: '10ml',   frequency: 'Two times per day',   duration: '7 days' },
+  { name: 'Diclofenac 50mg',          dose: '50mg',   frequency: 'Two times per day',   duration: '3 days', mealRelation: 'After meals' },
+  { name: 'Clindamycin 150mg',        dose: '150mg',  frequency: 'Four times per day',  duration: '5 days' },
+  { name: 'Dexamethasone 0.5mg',      dose: '0.5mg',  frequency: 'Once per day',        duration: '3 days' },
+  { name: 'Omeprazole 20mg',          dose: '20mg',   frequency: 'Once per day',        duration: '5 days', mealRelation: 'Before meals' },
 ]
 
-interface RxItem { id: string; drugName: string; dose: string; frequency: string; duration: string; instructions: string }
+const DOSE_OPTIONS = ['125mg', '150mg', '200mg', '250mg', '400mg', '500mg', '625mg', '1g', '5ml', '10ml']
+const FREQUENCY_OPTIONS = ['Once per day', 'Two times per day', 'Three times per day', 'Four times per day', 'Every 6 hours', 'Every 8 hours', 'As needed']
+const RX_TIMING_OPTIONS = ['Morning', 'Evening', 'Night', 'Morning and evening', 'Morning, evening and night']
+const MEAL_RELATION_OPTIONS = ['Before meals', 'After meals', 'With meals']
+
+interface RxItem {
+  id: string
+  drugName: string
+  dose: string
+  frequency: string
+  duration: string
+  timing: string
+  mealRelation: string
+  instructions: string
+}
 
 interface XrayFilePayload {
   fileName: string
@@ -387,13 +401,23 @@ export function VisitForm({
   const [rxNotes, setRxNotes] = useState('')
 
   function addRx() {
-    setRxItems(p => [...p, { id: uid(), drugName: '', dose: '', frequency: '', duration: '', instructions: '' }])
+    setRxItems(p => [...p, { id: uid(), drugName: '', dose: '', frequency: '', duration: '', timing: '', mealRelation: '', instructions: '' }])
   }
   function updateRx(id: string, field: keyof RxItem, val: string) {
     setRxItems(p => p.map(r => r.id === id ? { ...r, [field]: val } : r))
   }
   function applyDrug(id: string, drug: typeof SL_DRUGS[0]) {
-    setRxItems(p => p.map(r => r.id === id ? { ...r, drugName: drug.name, dose: drug.dose, frequency: drug.frequency, duration: drug.duration } : r))
+    setRxItems(p => p.map(r => r.id === id ? {
+      ...r,
+      drugName: drug.name,
+      dose: drug.dose,
+      frequency: drug.frequency,
+      duration: drug.duration,
+      mealRelation: drug.mealRelation ?? '',
+    } : r))
+  }
+  function composeRxInstructions(rx: RxItem) {
+    return [rx.timing, rx.mealRelation, rx.instructions].filter(Boolean).join(' - ')
   }
 
   // STEP 6 — Bill
@@ -574,7 +598,12 @@ export function VisitForm({
           status:         finalise ? 'READY_TO_PAY' : 'IN_PROGRESS',
           treatmentItems,
           prescription:   rxItems.some(r => r.drugName)
-            ? { items: rxItems.filter(r => r.drugName), notes: rxNotes }
+            ? {
+                items: rxItems
+                  .filter(r => r.drugName)
+                  .map(r => ({ ...r, instructions: composeRxInstructions(r) })),
+                notes: rxNotes,
+              }
             : null,
           payment: finalise ? {
             type:       payType,
@@ -1211,14 +1240,32 @@ export function VisitForm({
                       <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Drug</label>
                         <input value={rx.drugName} onChange={e => updateRx(rx.id, 'drugName', e.target.value)} className="form-input !py-2" /></div>
                       <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Dose</label>
-                        <input value={rx.dose} onChange={e => updateRx(rx.id, 'dose', e.target.value)} className="form-input !py-2" placeholder="500mg" /></div>
+                        <select value={rx.dose} onChange={e => updateRx(rx.id, 'dose', e.target.value)} className="form-input !py-2">
+                          <option value="">Select dose...</option>
+                          {rx.dose && !DOSE_OPTIONS.includes(rx.dose) && <option value={rx.dose}>{rx.dose}</option>}
+                          {DOSE_OPTIONS.map(dose => <option key={dose} value={dose}>{dose}</option>)}
+                        </select></div>
                       <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Frequency</label>
-                        <input value={rx.frequency} onChange={e => updateRx(rx.id, 'frequency', e.target.value)} className="form-input !py-2" /></div>
+                        <select value={rx.frequency} onChange={e => updateRx(rx.id, 'frequency', e.target.value)} className="form-input !py-2">
+                          <option value="">Select frequency...</option>
+                          {rx.frequency && !FREQUENCY_OPTIONS.includes(rx.frequency) && <option value={rx.frequency}>{rx.frequency}</option>}
+                          {FREQUENCY_OPTIONS.map(frequency => <option key={frequency} value={frequency}>{frequency}</option>)}
+                        </select></div>
                       <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Duration</label>
                         <input value={rx.duration} onChange={e => updateRx(rx.id, 'duration', e.target.value)} className="form-input !py-2" /></div>
+                      <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Timing</label>
+                        <select value={rx.timing} onChange={e => updateRx(rx.id, 'timing', e.target.value)} className="form-input !py-2">
+                          <option value="">Any time</option>
+                          {RX_TIMING_OPTIONS.map(timing => <option key={timing} value={timing}>{timing}</option>)}
+                        </select></div>
+                      <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Meals</label>
+                        <select value={rx.mealRelation} onChange={e => updateRx(rx.id, 'mealRelation', e.target.value)} className="form-input !py-2">
+                          <option value="">No meal instruction</option>
+                          {MEAL_RELATION_OPTIONS.map(relation => <option key={relation} value={relation}>{relation}</option>)}
+                        </select></div>
                     </div>
-                    <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Instructions</label>
-                      <input value={rx.instructions} onChange={e => updateRx(rx.id, 'instructions', e.target.value)} className="form-input !py-2" placeholder="e.g. Take after meals" /></div>
+                    <div><label className="text-xs font-semibold text-gray-500 mb-1 block">Additional instructions</label>
+                      <input value={rx.instructions} onChange={e => updateRx(rx.id, 'instructions', e.target.value)} className="form-input !py-2" placeholder="e.g. Complete the full course" /></div>
                   </div>
                 ))}
                 <button onClick={addRx} className="flex items-center gap-2 text-green-600 hover:text-green-800 font-semibold text-sm">
