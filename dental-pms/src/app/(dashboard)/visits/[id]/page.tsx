@@ -11,7 +11,7 @@ import { DoctorMedicalHistoryPanel } from '@/components/patients/DoctorMedicalHi
 import { isDoctorRole } from '@/lib/permissions'
 import type { Metadata } from 'next'
 
-interface Props { params: Promise<{ id: string }>; searchParams: Promise<{ print?: string }> }
+interface Props { params: Promise<{ id: string }>; searchParams: Promise<{ print?: string; close?: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -80,6 +80,7 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
   const allergies       = (visit.patient.medicalHistory?.allergies as any[]) ?? []
   const printTarget     = query.print === 'bill' || query.print === 'prescription' ? query.print : undefined
   const autoPrint       = query.print === '1' || !!printTarget
+  const closeAfterPrint = query.close === '1'
   const patientName     = getPatientDisplayName(visit.patient)
   const branchName      = visit.branch?.name ?? 'DentalCare'
   const branchAddress   = [visit.branch?.address, visit.branch?.city].filter(Boolean).join(', ')
@@ -88,7 +89,7 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
 
   return (
     <>
-      {autoPrint && <AutoPrint target={printTarget} />}
+      {autoPrint && <AutoPrint target={printTarget} closeAfterPrint={closeAfterPrint} />}
       <style
         dangerouslySetInnerHTML={{
           __html: `

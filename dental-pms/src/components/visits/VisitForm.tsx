@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Save, ChevronRight, ChevronLeft, Plus, Trash2,
-  Pill, Receipt, FileText, ClipboardList, Check, AlertCircle,
+  Pill, ClipboardList, Check, AlertCircle,
   Calendar, Share2, X, Upload, Image as ImageIcon,
 } from 'lucide-react'
 import { cn, formatLKR } from '@/lib/utils'
@@ -79,6 +79,7 @@ interface NextVisitItem {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10)
+const continuationComplaint = 'Continuation treatment'
 const NEXT_APPOINTMENT_TIMES = [
   ...buildTimeSlots(9, 14),
   ...buildTimeSlots(16, 21),
@@ -124,7 +125,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 // Step 1 "Review history" is the read-only card shown above this wizard
 // (see visits/new/page.tsx) — these are steps 2–8.
-type Step = 'diagnosis' | 'plan' | 'treatment' | 'next' | 'prescription' | 'bill' | 'end'
+type Step = 'diagnosis' | 'plan' | 'treatment' | 'next' | 'prescription' | 'bill'
 
 const STEPS: { id: Step; label: string }[] = [
   { id: 'diagnosis',    label: 'Diagnosis'      },
@@ -133,7 +134,6 @@ const STEPS: { id: Step; label: string }[] = [
   { id: 'next',         label: 'Next Visits'    },
   { id: 'prescription', label: 'Prescription'   },
   { id: 'bill',         label: 'Bill'           },
-  { id: 'end',          label: 'End Visit'      },
 ]
 
 interface Props {
@@ -154,11 +154,11 @@ export function VisitForm({
   queueId, defaultBranchId, defaultComplaint, fees = [],
 }: Props) {
   const router = useRouter()
-  const [step,     setStep]     = useState<Step>('diagnosis')
+  const hasPendingTreatmentPlan = pendingPlanItems.length > 0
+  const [step,     setStep]     = useState<Step>(hasPendingTreatmentPlan ? 'treatment' : 'diagnosis')
   const [doctorId, setDoctorId] = useState(defaultDoctorId)
   const [branchId, setBranchId] = useState(defaultBranchId || branches[0]?.id || '')
   const [saving,   setSaving]   = useState(false)
-  const [savedVisitId, setSavedVisitId] = useState<string | null>(null)
   const [showRefer, setShowRefer] = useState(false)
   const [referDoctorId, setReferDoctorId] = useState('')
   const [referNote, setReferNote] = useState('')
@@ -166,7 +166,7 @@ export function VisitForm({
 
   // STEP 1 — Diagnosis
   const [teeth,       setTeeth]       = useState<Record<number, ToothState>>({})
-  const [complaint,   setComplaint]   = useState(defaultComplaint ?? '')
+  const [complaint,   setComplaint]   = useState(defaultComplaint ?? (hasPendingTreatmentPlan ? continuationComplaint : ''))
   const [examination, setExamination] = useState('')
   const [diagnosis,   setDiagnosis]   = useState('')
   const [nurseAssisted, setNurseAssisted] = useState<string | null>(null)
@@ -267,7 +267,21 @@ export function VisitForm({
   }
 
   // STEP 3 — Treatment done today
-  const [txItems, setTxItems] = useState<TxItem[]>([])
+  const [txItems, setTxItems] = useState<TxItem[]>(() =>
+    hasPendingTreatmentPlan
+      ? pendingPlanItems.map(item => ({
+          id:               uid(),
+          description:      item.description,
+          toothNumber:      item.tooth,
+          listPrice:        item.price,
+          chargeAmt:        item.price,
+          deferToNext:      false,
+          multiSession:     false,
+          sourcePlanItemId: item.sourcePlanItemId,
+          feeId:            item.feeId,
+        }))
+      : []
+  )
 
   // Build treatment rows from plan, pre-filling prices
   function goToTreatment() {
@@ -419,6 +433,12 @@ export function VisitForm({
   function composeRxInstructions(rx: RxItem) {
     return [rx.timing, rx.mealRelation, rx.instructions].filter(Boolean).join(' - ')
   }
+  function openPrintPopup(title: string) {
+    const popup = window.open('', '_blank', 'popup,width=900,height=900')
+    popup?.document.write(`<!doctype html><title>${title}</title><body style="font-family:Arial,sans-serif;padding:32px"><h1 style="font-size:18px">Preparing ${title.toLowerCase()}...</h1></body>`)
+    popup?.document.close()
+    return popup
+  }
 
   // STEP 6 — Bill
   type PayType = 'full' | 'installment' | 'waive'
@@ -493,6 +513,8 @@ export function VisitForm({
   // Save
   async function handleSave(finalise = false) {
     if (!complaint.trim()) { showToast('error', 'Please enter the patient complaint'); return }
+    let billPrintWindow: Window | null = null
+    let rxPrintWindow: Window | null = null
     setSaving(true)
     try {
       const planEntries = getPlanEntries(planProcs, fees)
@@ -528,6 +550,15 @@ export function VisitForm({
           feeId: undefined,
         })
       }
+      const prescriptionItems = rxItems
+        .filter(r => r.drugName)
+        .map(r => ({ ...r, instructions: composeRxInstructions(r) }))
+      billPrintWindow = finalise && treatmentItems.length > 0
+        ? openPrintPopup('Bill print')
+        : null
+      rxPrintWindow = finalise && prescriptionItems.length > 0
+        ? openPrintPopup('Prescription print')
+        : null
       let xrayFilePayload: XrayFilePayload | null = null
       if (xrayFile) {
         xrayFilePayload = {
@@ -597,13 +628,8 @@ export function VisitForm({
           } : null,
           status:         finalise ? 'READY_TO_PAY' : 'IN_PROGRESS',
           treatmentItems,
-          prescription:   rxItems.some(r => r.drugName)
-            ? {
-                items: rxItems
-                  .filter(r => r.drugName)
-                  .map(r => ({ ...r, instructions: composeRxInstructions(r) })),
-                notes: rxNotes,
-              }
+          prescription:   prescriptionItems.length > 0
+            ? { items: prescriptionItems, notes: rxNotes }
             : null,
           payment: finalise ? {
             type:       payType,
@@ -622,16 +648,16 @@ export function VisitForm({
       if (!res.ok) throw new Error(json.error ?? 'Failed to save')
       showToast('success', finalise ? 'Visit completed — patient ready to pay' : 'Visit saved')
       if (finalise) {
-        // Step 8 "End visit": the visit is now locked. Show the confirmation
-        // screen instead of navigating away, so printing and returning to
-        // the queue are both one deliberate tap.
-        setSavedVisitId(json.visitId)
-        setStep('end')
+        if (billPrintWindow) billPrintWindow.location.href = `/visits/${json.visitId}?print=bill&close=1`
+        if (rxPrintWindow) rxPrintWindow.location.href = `/visits/${json.visitId}?print=prescription&close=1`
+        router.push('/dashboard')
       } else {
         router.push(`/visits/${json.visitId}`)
       }
     } catch (e: any) {
       showToast('error', e.message)
+      billPrintWindow?.close()
+      rxPrintWindow?.close()
     } finally {
       setSaving(false)
     }
@@ -1228,10 +1254,10 @@ export function VisitForm({
                       <p className="text-sm font-bold text-green-700">Medicine {idx + 1}</p>
                       <button onClick={() => setRxItems(p => p.filter(r => r.id !== rx.id))} className="text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-3">
                       {SL_DRUGS.map(drug => (
                         <button key={drug.name} type="button" onClick={() => applyDrug(rx.id, drug)}
-                          className={cn('text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors',
+                          className={cn('text-xs px-3 py-2 rounded-lg border font-medium transition-colors',
                             rx.drugName === drug.name ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:border-green-400')}>
                           {drug.name.split(' ')[0]}</button>
                       ))}
@@ -1532,38 +1558,6 @@ export function VisitForm({
         </div>
       )}
 
-      {/* ── STEP 8: END VISIT ─────────────────────────────────────────────── */}
-      {step === 'end' && savedVisitId && (
-        <div className="section-card border-2 border-green-300 bg-green-50">
-          <div className="section-card-header bg-green-100">
-            <h2 className="text-xl font-bold text-green-900">8. Visit Ended</h2>
-          </div>
-          <div className="section-card-body space-y-5 text-center py-10">
-            <div className="w-16 h-16 rounded-full bg-green-600 text-white flex items-center justify-center mx-auto">
-              <Check className="w-8 h-8" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">Visit locked and sent to reception</p>
-              <p className="text-base text-gray-500 mt-1">
-                The patient now shows as ready to pay on the reception board.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <a href={`/visits/${savedVisitId}?print=bill`}
-                className="btn-secondary">
-                <Receipt className="w-4 h-4" />Print bill
-              </a>
-              <a href={`/visits/${savedVisitId}?print=prescription`}
-                className="btn-secondary">
-                <FileText className="w-4 h-4" />Print prescription
-              </a>
-              <button onClick={() => router.push('/dashboard')} className="btn-primary !bg-green-600 hover:!bg-green-700">
-                I am free - show next patient<ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

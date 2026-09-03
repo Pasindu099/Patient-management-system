@@ -329,6 +329,7 @@ export default async function NewVisitPage({ searchParams }: Props) {
       description: item.procedureName,
       tooth: item.toothNumbers ?? '',
       price: item.fee,
+      feeId: item.feeId ?? undefined,
     }))
   )
 
