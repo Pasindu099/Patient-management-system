@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, AlertTriangle, ClipboardList, FileText } from 'lucide-react'
 import { cn, formatDate, formatDateTime, formatCurrency, getPatientDisplayName, getAge, getInitials } from '@/lib/utils'
+import { can } from '@/lib/permissions'
 import { SOAPNoteForm }  from './SOAPNoteForm'
 import { TreatmentPlanBuilder } from './TreatmentPlanBuilder'
 
@@ -28,6 +29,9 @@ export function ClinicalWorkspace({
   const avatarBg   = AVATAR_COLORS[fullName.charCodeAt(0) % AVATAR_COLORS.length]
   const allergies  = (patient.medicalHistory?.allergies as any[]) ?? []
   const latestRisk = patient.riskAssessments?.[0]
+  const canSeeTreatmentMoney = can(currentUser.role, 'billing.visit') ||
+    can(currentUser.role, 'money.aggregate')
+  const tabs = canSeeTreatmentMoney ? TABS : TABS.filter(tab => tab.id !== 'plans')
 
   function onNoteOrPlanSaved() {
     setRefresh(r => r + 1)
@@ -82,7 +86,7 @@ export function ClinicalWorkspace({
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 px-6">
         <div className="flex gap-0 max-w-7xl mx-auto">
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
@@ -167,7 +171,7 @@ export function ClinicalWorkspace({
           )}
 
           {/* â”€â”€ TREATMENT PLANS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          {activeTab === 'plans' && (
+          {activeTab === 'plans' && canSeeTreatmentMoney && (
             <div className="space-y-5">
               <TreatmentPlanBuilder
                 patientId={patient.id}

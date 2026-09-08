@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { isDoctorRole } from '@/lib/permissions'
+import { can, isDoctorRole } from '@/lib/permissions'
 import { getPatientDisplayName } from '@/lib/utils'
 import { visitPrintInclude } from '@/lib/visit-print'
 import { VisitPrintDocuments, VisitPrintStyles } from '@/components/visits/VisitPrintDocuments'
@@ -31,7 +31,9 @@ export default async function VisitPrintPreviewPage({ params, searchParams }: Pr
   if (session.user.role === 'ADMIN') redirect('/dashboard')
   if (isDoctorRole(session.user.role) && visit.doctorId !== session.user.id) redirect('/dashboard')
 
-  const invoice      = visit.invoices[0]?.invoice
+  const canSeeVisitMoney = can(session.user.role, 'money.aggregate') ||
+    (can(session.user.role, 'billing.visit') && visit.doctorId === session.user.id)
+  const invoice      = canSeeVisitMoney ? visit.invoices[0]?.invoice : null
   const prescription = visit.prescriptions[0]
   const patientName  = getPatientDisplayName(visit.patient)
 
@@ -94,7 +96,7 @@ export default async function VisitPrintPreviewPage({ params, searchParams }: Pr
                 Sheet 1 — Bill
               </p>
               <div className="preview-sheet">
-                <VisitPrintDocuments visit={visit} mode="preview" only="bill" />
+                <VisitPrintDocuments visit={visit} mode="preview" only="bill" canSeeBill={canSeeVisitMoney} />
               </div>
             </>
           )}
@@ -104,7 +106,7 @@ export default async function VisitPrintPreviewPage({ params, searchParams }: Pr
                 Sheet {invoice ? 2 : 1} — Prescription
               </p>
               <div className="preview-sheet">
-                <VisitPrintDocuments visit={visit} mode="preview" only="prescription" />
+                <VisitPrintDocuments visit={visit} mode="preview" only="prescription" canSeeBill={canSeeVisitMoney} />
               </div>
             </>
           )}

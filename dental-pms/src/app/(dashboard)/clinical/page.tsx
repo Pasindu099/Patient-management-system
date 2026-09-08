@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Search, ClipboardList, ChevronRight, AlertTriangle } from 'lucide-react'
 import { formatDate, getAge, getPatientDisplayName, cn } from '@/lib/utils'
+import { can } from '@/lib/permissions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Clinical' }
@@ -12,7 +14,11 @@ interface PageProps {
 }
 
 export default async function ClinicalPage({ searchParams }: PageProps) {
-  await auth()
+  const session = await auth()
+  if (!session) redirect('/login')
+  if (!can(session.user.role, 'clinical.scribe') && !can(session.user.role, 'clinical.visit')) {
+    redirect('/dashboard')
+  }
   const params = await searchParams
 
   const search = params.search?.trim() ?? ''

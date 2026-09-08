@@ -6,6 +6,9 @@ import { can } from '@/lib/permissions'
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+  if (!can(session.user.role, 'settings.admin') && !can(session.user.role, 'billing.visit')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const fees = await prisma.treatmentFee.findMany({
     where:   { isActive: true },

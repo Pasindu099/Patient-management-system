@@ -4,6 +4,8 @@ import { NewInvoiceForm } from '@/components/billing/NewInvoiceForm'
 import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+import { can } from '@/lib/permissions'
 
 export const metadata: Metadata = { title: 'New Invoice' }
 
@@ -12,7 +14,9 @@ export default async function NewInvoicePage({
 }: {
   searchParams: Promise<{ patientId?: string }>
 }) {
-  await auth()
+  const session = await auth()
+  if (!session) redirect('/login')
+  if (!can(session.user.role, 'money.aggregate')) redirect('/dashboard')
   const params = await searchParams
 
   const branches = await prisma.branch.findMany({

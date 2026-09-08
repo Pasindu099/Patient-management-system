@@ -38,9 +38,9 @@ function generateInvoiceNumber() {
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-  // Standalone invoicing is a front-desk job. Visit bills do not come through
-  // here — they are written inside the POST /api/visits transaction.
-  if (!canBill(session.user.role)) {
+  // Standalone invoices are not tied to a treating doctor, so only admin can
+  // create them. Visit bills are written inside POST /api/visits by doctors.
+  if (!can(session.user.role, 'money.aggregate')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -122,6 +122,7 @@ export async function GET(req: NextRequest) {
   if (!canBill(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const canSeeAllMoney = can(session.user.role, 'money.aggregate')
 
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get('patientId')
@@ -132,6 +133,7 @@ export async function GET(req: NextRequest) {
     where: {
       ...(patientId ? { patientId } : {}),
       ...(status ? { status } : {}),
+      ...(canSeeAllMoney ? {} : { visitInvoices: { some: { visit: { doctorId: session.user.id } } } }),
     },
     orderBy: { createdAt: 'desc' },
     take: 50,

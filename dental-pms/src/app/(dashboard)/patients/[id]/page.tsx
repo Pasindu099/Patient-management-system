@@ -29,6 +29,7 @@ export default async function PatientProfilePage({ params }: PageProps) {
   const session = await auth()
   if (!session) redirect('/login')
   const { id } = await params
+  const canSeeBalance = can(session.user.role, 'money.aggregate')
 
   const patient = await prisma.patient.findUnique({
     where: { id, deletedAt: null },
@@ -45,16 +46,29 @@ export default async function PatientProfilePage({ params }: PageProps) {
         take: 3,
         include: { author: { select: { name: true } } },
       },
-      treatmentPlans: {
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-        include: { items: true },
-      },
-      invoices: {
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: { items: true, payments: true },
-      },
+      treatmentPlans: canSeeBalance
+        ? {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { items: true },
+          }
+        : {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              items: { select: { id: true } },
+            },
+          },
+      invoices: canSeeBalance
+        ? {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { items: true, payments: true },
+          }
+        : false,
       riskAssessments: { orderBy: { assessedAt: 'desc' }, take: 1 },
       documents:       { orderBy: { uploadedAt: 'desc' }, take: 5 },
       vitalSigns:      { orderBy: { recordedAt: 'desc' }, take: 1 },
@@ -68,17 +82,19 @@ export default async function PatientProfilePage({ params }: PageProps) {
             orderBy: { createdAt: 'desc' },
             take: 1,
           },
-          invoices: {
-            include: {
-              invoice: {
+          invoices: canSeeBalance
+            ? {
                 include: {
-                  installmentPlan: {
-                    include: { installments: { orderBy: { number: 'asc' } } },
+                  invoice: {
+                    include: {
+                      installmentPlan: {
+                        include: { installments: { orderBy: { number: 'asc' } } },
+                      },
+                    },
                   },
                 },
-              },
-            },
-          },
+              }
+            : false,
         },
       },
     },
@@ -89,21 +105,19 @@ export default async function PatientProfilePage({ params }: PageProps) {
   const canStartVisit = can(session.user.role, 'clinical.visit')
   // Balance carried across every past bill is an aggregate, not the bill for
   // the patient in the chair — admin (and reception, who collect it) only.
-  const canSeeBalance = can(session.user.role, 'money.aggregate') ||
-                        can(session.user.role, 'billing.collect')
   const fullName  = getPatientDisplayName(patient)
   const lastVisit = patient.visits[0] ?? null
 
   const lastRx              = lastVisit?.prescriptions[0] ?? null
   const rxDrugs             = lastRx ? lastRx.items.map((i: any) => i.drugName).join(', ') : ''
-  const lastInvoice         = lastVisit?.invoices[0]?.invoice ?? null
+  const lastInvoice         = (lastVisit as any)?.invoices?.[0]?.invoice ?? null
   const installmentPlan     = lastInvoice?.installmentPlan ?? null
   const installmentsPaid    = installmentPlan ? installmentPlan.installments.filter((i: any) => i.paidAt).length : 0
   const installmentsTotal   = installmentPlan ? installmentPlan.installments.length : 0
 
-  const outstandingBalance = patient.invoices
-    .filter(i => ['SENT', 'PARTIAL', 'OVERDUE'].includes(i.status))
-    .reduce((sum, i) => sum + i.balance, 0)
+  const outstandingBalance = ((patient as any).invoices ?? [])
+    .filter((i: any) => ['SENT', 'PARTIAL', 'OVERDUE'].includes(i.status))
+    .reduce((sum: number, i: any) => sum + i.balance, 0)
 
   const AVATAR_COLORS = ['bg-blue-500', 'bg-teal-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500']
   const avatarBg = AVATAR_COLORS[fullName.charCodeAt(0) % AVATAR_COLORS.length]
@@ -167,7 +181,7 @@ export default async function PatientProfilePage({ params }: PageProps) {
               </div>
             )}
           </div>
-          {installmentPlan && (
+          {canSeeBalance && installmentPlan && (
             <div className="px-6 pb-4">
               <div className="bg-white border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">

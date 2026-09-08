@@ -32,7 +32,9 @@ const STATUS_STYLES: Record<string, string> = {
 export default async function InvoiceDetailPage({ params }: Props) {
   const session = await auth()
   if (!session) redirect('/login')
-  if (!can(session.user.role, 'billing.collect')) redirect('/dashboard')
+  const canCollect = can(session.user.role, 'billing.collect')
+  const canSeeAllMoney = can(session.user.role, 'money.aggregate')
+  if (!canCollect && !canSeeAllMoney) redirect('/dashboard')
 
   const { id } = await params
   const inv = await prisma.invoice.findUnique({
@@ -47,10 +49,10 @@ export default async function InvoiceDetailPage({ params }: Props) {
   })
 
   if (!inv) notFound()
-  if (!inv.visitInvoices.some(link => link.visit.doctorId === session.user.id)) redirect('/billing')
+  if (!canSeeAllMoney && !inv.visitInvoices.some(link => link.visit.doctorId === session.user.id)) redirect('/billing')
 
   const cur = inv.currency as 'LKR' | 'USD'
-  const canRecordPayment = inv.balance > 0 && !['CANCELLED','WRITTEN_OFF','PAID'].includes(inv.status)
+  const canRecordPayment = canCollect && inv.balance > 0 && !['CANCELLED','WRITTEN_OFF','PAID'].includes(inv.status)
   const USD_RATE = inv.exchangeRate ?? 320
 
   return (

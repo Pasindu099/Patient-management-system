@@ -138,9 +138,11 @@ export function PatientTabs({ patient, canSeeBilling = true }: { patient: any; c
                       </div>
                       <div className="flex items-center justify-between text-sm text-gray-500">
                         <span>{plan.items.length} procedure{plan.items.length !== 1 ? 's' : ''}</span>
-                        <span className="font-semibold text-gray-700">
-                          {formatCurrency(plan.totalFee)} total
-                        </span>
+                        {canSeeBilling && (
+                          <span className="font-semibold text-gray-700">
+                            {formatCurrency(plan.totalFee)} total
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}

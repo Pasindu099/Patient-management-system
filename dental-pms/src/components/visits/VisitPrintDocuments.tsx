@@ -123,10 +123,11 @@ interface Props {
   mode?: 'print-only' | 'preview'
   /** Render a single document — lets the preview put each sheet in its own frame. */
   only?: 'both' | 'bill' | 'prescription'
+  canSeeBill?: boolean
 }
 
-export function VisitPrintDocuments({ visit, mode = 'print-only', only = 'both' }: Props) {
-  const invoice         = visit.invoices[0]?.invoice
+export function VisitPrintDocuments({ visit, mode = 'print-only', only = 'both', canSeeBill = true }: Props) {
+  const invoice         = canSeeBill ? visit.invoices[0]?.invoice : null
   const prescription    = visit.prescriptions[0]
   const installmentPlan = invoice?.installmentPlan
   const allergies       = (visit.patient.medicalHistory?.allergies as any[]) ?? []

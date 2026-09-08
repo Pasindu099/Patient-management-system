@@ -33,7 +33,9 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; ba
 export default async function BillingPage({ searchParams }: PageProps) {
   const session = await auth()
   if (!session) redirect('/login')
-  if (!can(session.user.role, 'billing.collect')) redirect('/dashboard')
+  const canCollect = can(session.user.role, 'billing.collect')
+  const canSeeAllMoney = can(session.user.role, 'money.aggregate')
+  if (!canCollect && !canSeeAllMoney) redirect('/dashboard')
 
   const params = await searchParams
 
@@ -44,7 +46,9 @@ export default async function BillingPage({ searchParams }: PageProps) {
   const skip   = (page - 1) * limit
 
   const where: any = {}
-  where.visitInvoices = { some: { visit: { doctorId: session.user.id } } }
+  if (!canSeeAllMoney) {
+    where.visitInvoices = { some: { visit: { doctorId: session.user.id } } }
+  }
   if (status !== 'all') where.status = status
   if (search) {
     where.OR = [
@@ -77,7 +81,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
     prisma.invoice.aggregate({
       where: {
         status: { in: ['SENT', 'PARTIAL', 'OVERDUE'] },
-        visitInvoices: { some: { visit: { doctorId: session.user.id } } },
+        ...(canSeeAllMoney ? {} : { visitInvoices: { some: { visit: { doctorId: session.user.id } } } }),
       },
       _sum: { balance: true },
     }),
@@ -86,14 +90,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
         status: 'PAID',
         paidDate: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
         currency: 'LKR',
-        visitInvoices: { some: { visit: { doctorId: session.user.id } } },
+        ...(canSeeAllMoney ? {} : { visitInvoices: { some: { visit: { doctorId: session.user.id } } } }),
       },
       _sum: { total: true },
     }),
     prisma.invoice.count({
       where: {
         status: 'OVERDUE',
-        visitInvoices: { some: { visit: { doctorId: session.user.id } } },
+        ...(canSeeAllMoney ? {} : { visitInvoices: { some: { visit: { doctorId: session.user.id } } } }),
       },
     }),
   ])
@@ -115,13 +119,15 @@ export default async function BillingPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Billing</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{canSeeAllMoney ? 'Billing' : 'My billing'}</h1>
           <p className="text-base text-gray-500 mt-0.5">{total.toLocaleString()} invoice{total !== 1 ? 's' : ''}</p>
         </div>
-        <Link href="/billing/new" className="btn-primary">
-          <Plus className="w-5 h-5" />
-          New invoice
-        </Link>
+        {canSeeAllMoney && (
+          <Link href="/billing/new" className="btn-primary">
+            <Plus className="w-5 h-5" />
+            New invoice
+          </Link>
+        )}
       </div>
 
       {/* KPI strip */}

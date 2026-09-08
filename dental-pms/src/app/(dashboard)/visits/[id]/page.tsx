@@ -9,7 +9,7 @@ import { AutoPrint }      from '@/components/visits/AutoPrint'
 import { VisitPrintDocuments, VisitPrintStyles } from '@/components/visits/VisitPrintDocuments'
 import { ObservationFeed } from '@/components/visits/ObservationFeed'
 import { DoctorMedicalHistoryPanel } from '@/components/patients/DoctorMedicalHistoryPanel'
-import { isDoctorRole } from '@/lib/permissions'
+import { can, isDoctorRole } from '@/lib/permissions'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }>; searchParams: Promise<{ print?: string; close?: string }> }
@@ -77,7 +77,10 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
 
   const invoice         = visit.invoices[0]?.invoice
   const prescription    = visit.prescriptions[0]
-  const installmentPlan = invoice?.installmentPlan
+  const canSeeVisitMoney = can(session.user.role, 'money.aggregate') ||
+    (can(session.user.role, 'billing.visit') && visit.doctorId === session.user.id)
+  const visibleInvoice  = canSeeVisitMoney ? invoice : null
+  const installmentPlan = visibleInvoice?.installmentPlan
   const allergies       = (visit.patient.medicalHistory?.allergies as any[]) ?? []
   const printTarget     = query.print === 'bill' || query.print === 'prescription' ? query.print : undefined
   const autoPrint       = query.print === '1' || !!printTarget
@@ -95,13 +98,13 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
             <ChevronLeft className="w-4 h-4" /> Back to visits
           </Link>
           <div className="flex flex-wrap items-center gap-2">
-            {(invoice || prescription) && (
+            {(visibleInvoice || prescription) && (
               <Link href={`/visits/${visit.id}/print`} className="btn-secondary !text-sm !px-4 !py-2">
                 <Printer className="w-4 h-4" />
                 Print preview
               </Link>
             )}
-            <VisitPrintButton visitId={visit.id} hasInvoice={!!invoice} hasPrescription={!!prescription} />
+            <VisitPrintButton visitId={visit.id} hasInvoice={!!visibleInvoice} hasPrescription={!!prescription} />
           </div>
         </div>
 
@@ -154,17 +157,17 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
         </div>
 
         {/* Invoice */}
-        {invoice && (
+        {visibleInvoice && (
           <div className="section-card">
             <div className="section-card-header">
-              <h2 className="text-lg font-semibold text-gray-900">Bill — {invoice.invoiceNumber}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Bill — {visibleInvoice.invoiceNumber}</h2>
               <span className={cn(
                 'text-sm font-semibold px-3 py-1 rounded-full',
-                invoice.status === 'PAID' ? 'bg-green-100 text-green-700' :
-                invoice.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
+                visibleInvoice.status === 'PAID' ? 'bg-green-100 text-green-700' :
+                visibleInvoice.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
                 'bg-blue-100 text-blue-700'
               )}>
-                {invoice.status}
+                {visibleInvoice.status}
               </span>
             </div>
             <div className="overflow-x-auto">
@@ -177,7 +180,7 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.items.map(item => (
+                  {visibleInvoice.items.map(item => (
                     <tr key={item.id} className="border-b border-gray-100">
                       <td className="px-5 py-3">{item.description}</td>
                       <td className="px-4 py-3 text-center text-gray-500 font-mono text-sm">{item.toothNumbers ?? '—'}</td>
@@ -189,24 +192,24 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
             </div>
             <div className="px-5 py-4 bg-gray-50 border-t border-gray-200 space-y-1.5">
               <div className="flex justify-between text-base text-gray-600">
-                <span>Subtotal</span><span>{formatLKR(invoice.subtotal)}</span>
+                <span>Subtotal</span><span>{formatLKR(visibleInvoice.subtotal)}</span>
               </div>
-              {invoice.discount > 0 && (
+              {visibleInvoice.discount > 0 && (
                 <div className="flex justify-between text-base text-green-700 font-semibold">
-                  <span>Waived / Discount</span><span>− {formatLKR(invoice.discount)}</span>
+                  <span>Waived / Discount</span><span>− {formatLKR(visibleInvoice.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-xl font-bold text-gray-900 pt-1 border-t border-gray-200">
-                <span>Total</span><span>{formatLKR(invoice.total)}</span>
+                <span>Total</span><span>{formatLKR(visibleInvoice.total)}</span>
               </div>
-              {invoice.amountPaid > 0 && (
+              {visibleInvoice.amountPaid > 0 && (
                 <div className="flex justify-between text-base text-green-700">
-                  <span>Paid</span><span>{formatLKR(invoice.amountPaid)}</span>
+                  <span>Paid</span><span>{formatLKR(visibleInvoice.amountPaid)}</span>
                 </div>
               )}
-              {invoice.balance > 0 && (
+              {visibleInvoice.balance > 0 && (
                 <div className="flex justify-between text-lg font-bold text-red-700">
-                  <span>Balance due</span><span>{formatLKR(invoice.balance)}</span>
+                  <span>Balance due</span><span>{formatLKR(visibleInvoice.balance)}</span>
                 </div>
               )}
             </div>
@@ -300,7 +303,7 @@ export default async function VisitDetailPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      <VisitPrintDocuments visit={visit} />
+      <VisitPrintDocuments visit={visit} canSeeBill={canSeeVisitMoney} />
     </>
   )
 }

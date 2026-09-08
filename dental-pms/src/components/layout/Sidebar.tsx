@@ -45,8 +45,8 @@ const NAV = [
   {
     section: 'Finance',
     items: [
-      { label: 'Billing',       href: '/billing',            icon: Receipt,  roles: ['HEAD_NURSE'] as UserRole[], title: 'Create and view invoices' },
-      { label: 'Payment Queue',  href: '/billing/queue',      icon: Receipt,  roles: ['HEAD_NURSE'] as UserRole[], title: 'Patients ready to pay right now' },
+      { label: 'My Billing',     href: '/billing',            icon: Receipt,  roles: ['DOCTOR'] as UserRole[], title: 'View your own invoices' },
+      { label: 'Payment Queue',  href: '/billing/queue',      icon: Receipt,  roles: ['DOCTOR'] as UserRole[], title: 'Your patients ready to pay right now' },
       { label: 'Finance',     href: '/finance',            icon: Wallet,    roles: ['ADMIN'] as UserRole[], title: 'Clinic-wide ledger: expenses, debtors, profit' },
       { label: 'Earnings',    href: '/finance/net-cash',   icon: Receipt,   roles: ['ADMIN'] as UserRole[], title: 'Patient earnings report' },
       { label: 'Practice KPIs', href: '/kpi',              icon: Gauge,     roles: ['ADMIN'] as UserRole[], title: 'Per-doctor financial, productivity, retention and efficiency KPIs' },

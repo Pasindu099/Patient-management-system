@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { toCents, fromCents } from '@/lib/money'
+import { can } from '@/lib/permissions'
 
 const itemSchema = z.object({
   procedureName: z.string().min(1),
@@ -24,6 +25,9 @@ const schema = z.object({
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+  if (!can(session.user.role, 'billing.visit')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const body   = await req.json()
   const parsed = schema.safeParse(body)

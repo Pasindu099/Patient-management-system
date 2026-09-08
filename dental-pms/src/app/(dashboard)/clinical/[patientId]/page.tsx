@@ -1,8 +1,9 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { ClinicalWorkspace } from '@/components/clinical/ClinicalWorkspace'
 import type { Metadata } from 'next'
+import { can } from '@/lib/permissions'
 
 interface Props { params: Promise<{ patientId: string }> }
 
@@ -18,8 +19,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ClinicalPatientPage({ params }: Props) {
   const session = await auth()
-  if (!session) return null
+  if (!session) redirect('/login')
+  if (!can(session.user.role, 'clinical.scribe') && !can(session.user.role, 'clinical.visit')) {
+    redirect('/dashboard')
+  }
   const { patientId } = await params
+  const canSeeTreatmentMoney = can(session.user.role, 'billing.visit') ||
+    can(session.user.role, 'money.aggregate')
 
   const patient = await prisma.patient.findUnique({
     where: { id: patientId, deletedAt: null },
@@ -30,11 +36,13 @@ export default async function ClinicalPatientPage({ params }: Props) {
         take: 20,
         include: { author: { select: { name: true } } },
       },
-      treatmentPlans: {
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: { items: true, createdBy: { select: { name: true } } },
-      },
+      treatmentPlans: canSeeTreatmentMoney
+        ? {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { items: true, createdBy: { select: { name: true } } },
+          }
+        : false,
       riskAssessments: {
         orderBy: { assessedAt: 'desc' },
         take: 1,
