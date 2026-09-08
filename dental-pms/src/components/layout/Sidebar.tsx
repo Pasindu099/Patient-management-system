@@ -25,7 +25,7 @@ const NAV = [
       { label: 'Dashboard',        href: '/dashboard',          icon: LayoutDashboard, roles: [] as UserRole[] },
       { label: 'Register Patient', href: '/patients/new',       icon: UserPlus,        roles: ['NURSE','HEAD_NURSE','RECEPTIONIST'] as UserRole[] },
       { label: 'Patients',         href: '/patients',           icon: Users,           roles: ['DOCTOR','NURSE','HEAD_NURSE','RECEPTIONIST'] as UserRole[] },
-      { label: 'Reception Queue',  href: '/queue',              icon: ListOrdered,     roles: ['RECEPTIONIST','HEAD_NURSE'] as UserRole[] },
+      { label: 'Reception Queue',  href: '/queue',              icon: ListOrdered,     roles: ['NURSE','HEAD_NURSE','RECEPTIONIST'] as UserRole[] },
       { label: 'Appointments',     href: '/appointments',       icon: CalendarDays,    roles: ['DOCTOR','NURSE','HEAD_NURSE','RECEPTIONIST'] as UserRole[] },
       { label: 'Appointment Slots', href: '/settings/slots',     icon: CalendarDays,    roles: ['DOCTOR'] as UserRole[] },
       { label: 'Inventory',        href: '/inventory',          icon: Package,         roles: ['NURSE','HEAD_NURSE','RECEPTIONIST','ADMIN'] as UserRole[] },

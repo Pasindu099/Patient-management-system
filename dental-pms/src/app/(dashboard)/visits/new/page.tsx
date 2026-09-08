@@ -340,7 +340,7 @@ export default async function NewVisitPage({ searchParams }: Props) {
   ].filter(Boolean).join(' | ')
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-5">
+    <div className="p-6 max-w-5xl mx-auto space-y-5">
 
       <Link href="/visits" className="inline-flex items-center gap-1.5 text-base text-gray-500 hover:text-gray-800 transition-colors">
         <ChevronLeft className="w-4 h-4" /> Back

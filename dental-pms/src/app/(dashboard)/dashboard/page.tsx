@@ -33,8 +33,9 @@ export default async function DashboardPage() {
   const isDoctor   = isDoctorRole(user.role)
   const isAdmin    = user.role === 'ADMIN'
   const isReception = isReceptionRole(user.role)
-  // Plain NURSE matches none of the above (HEAD_NURSE is covered by isReception) —
-  // without this the dashboard renders nothing but the greeting for a nurse.
+  // NURSE now covers the front desk too, so it is already inside isReception.
+  // isNurse only gates the extra clinical quick-actions (chairside assist),
+  // which the other reception roles do not get.
   const isNurse    = user.role === 'NURSE'
 
   // Doctor home = their queue only. No stats, no menus, one job: see who's next.
@@ -543,17 +544,6 @@ export default async function DashboardPage() {
             <div>
               <p className="text-lg font-bold text-gray-900">Active visits</p>
               <p className="text-gray-500 text-sm">Scribe notes while the doctor treats</p>
-            </div>
-            <ChevronRight className="w-5 h-5 ml-auto text-gray-300" />
-          </Link>
-          <Link href="/patients/new"
-            className="flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-gray-200 hover:border-blue-400 transition-colors">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <UserPlus className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-lg font-bold text-gray-900">Register patient</p>
-              <p className="text-gray-500 text-sm">New patient walk-in</p>
             </div>
             <ChevronRight className="w-5 h-5 ml-auto text-gray-300" />
           </Link>

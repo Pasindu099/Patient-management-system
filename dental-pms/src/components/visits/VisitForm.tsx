@@ -433,13 +433,6 @@ export function VisitForm({
   function composeRxInstructions(rx: RxItem) {
     return [rx.timing, rx.mealRelation, rx.instructions].filter(Boolean).join(' - ')
   }
-  function openPrintPopup(title: string) {
-    const popup = window.open('', '_blank', 'popup,width=900,height=900')
-    popup?.document.write(`<!doctype html><title>${title}</title><body style="font-family:Arial,sans-serif;padding:32px"><h1 style="font-size:18px">Preparing ${title.toLowerCase()}...</h1></body>`)
-    popup?.document.close()
-    return popup
-  }
-
   // STEP 6 — Bill
   type PayType = 'full' | 'installment' | 'waive'
   const [payType,     setPayType]     = useState<PayType>('full')
@@ -478,6 +471,11 @@ export function VisitForm({
 
   const totalPayable   = Math.max(0, subtotal - billDiscount)
   const paid           = cashAmt + cardAmt + transferAmt
+  // Nothing left to charge (everything waived) is the only way to finish
+  // without recording money in; otherwise the split has to add up to the bill.
+  const fullyWaived    = totalPayable <= 0
+  const outstanding    = Number((totalPayable - paid).toFixed(2))
+  const paymentSettled = fullyWaived || Math.abs(outstanding) < 0.01
   const installTotal   = installRows.reduce((s, r) => s + r.amount, 0)
   const installmentDelta = Number((installTotal - totalPayable).toFixed(2))
   const installmentBalanced = Math.abs(installmentDelta) <= 0.01
@@ -513,8 +511,16 @@ export function VisitForm({
   // Save
   async function handleSave(finalise = false) {
     if (!complaint.trim()) { showToast('error', 'Please enter the patient complaint'); return }
-    let billPrintWindow: Window | null = null
-    let rxPrintWindow: Window | null = null
+    if (finalise && !paymentSettled) {
+      showToast(
+        'error',
+        'Record the payment received',
+        outstanding > 0
+          ? `${formatLKR(outstanding)} is still unaccounted for. Enter what you received as cash, card or transfer — or waive the balance.`
+          : `The amounts entered exceed the bill by ${formatLKR(Math.abs(outstanding))}.`,
+      )
+      return
+    }
     setSaving(true)
     try {
       const planEntries = getPlanEntries(planProcs, fees)
@@ -553,12 +559,6 @@ export function VisitForm({
       const prescriptionItems = rxItems
         .filter(r => r.drugName)
         .map(r => ({ ...r, instructions: composeRxInstructions(r) }))
-      billPrintWindow = finalise && treatmentItems.length > 0
-        ? openPrintPopup('Bill print')
-        : null
-      rxPrintWindow = finalise && prescriptionItems.length > 0
-        ? openPrintPopup('Prescription print')
-        : null
       let xrayFilePayload: XrayFilePayload | null = null
       if (xrayFile) {
         xrayFilePayload = {
@@ -648,16 +648,14 @@ export function VisitForm({
       if (!res.ok) throw new Error(json.error ?? 'Failed to save')
       showToast('success', finalise ? 'Visit completed — patient ready to pay' : 'Visit saved')
       if (finalise) {
-        if (billPrintWindow) billPrintWindow.location.href = `/visits/${json.visitId}?print=bill&close=1`
-        if (rxPrintWindow) rxPrintWindow.location.href = `/visits/${json.visitId}?print=prescription&close=1`
-        router.push('/dashboard')
+        // Straight into the print preview — the doctor decides there what to
+        // put on paper, and lands back on the dashboard from that screen.
+        router.push(`/visits/${json.visitId}/print?from=complete`)
       } else {
         router.push(`/visits/${json.visitId}`)
       }
     } catch (e: any) {
       showToast('error', e.message)
-      billPrintWindow?.close()
-      rxPrintWindow?.close()
     } finally {
       setSaving(false)
     }
@@ -886,7 +884,7 @@ export function VisitForm({
               to the next-visit plan instead of today&apos;s bill.
             </p></div>
           </div>
-          <div className="section-card-body space-y-3">
+          <div className="section-card-body space-y-4">
             {pendingPlanItems.length > 0 && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
                 <p className="text-sm font-bold text-blue-900">Planned from last visit</p>
@@ -918,11 +916,11 @@ export function VisitForm({
             )}
 
             {/* Column headers */}
-            <div className="grid grid-cols-12 gap-3 px-1">
+            <div className="grid grid-cols-12 gap-4 px-1">
               <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Treatment</div>
-              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">Tooth</div>
+              <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">Tooth</div>
               <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">List price</div>
-              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">You charge</div>
+              <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">You charge</div>
               <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">When</div>
             </div>
 
@@ -930,17 +928,17 @@ export function VisitForm({
               const remaining = Math.max(0, t.listPrice - t.chargeAmt)
               const disc = t.multiSession ? 0 : remaining
               return (
-                <div key={t.id} className={cn('grid grid-cols-12 gap-3 items-center rounded-xl p-3 border',
+                <div key={t.id} className={cn('grid grid-cols-12 gap-4 items-center rounded-xl p-4 border',
                   t.deferToNext || t.multiSession ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200')}>
                   <div className="col-span-3">
                     <input type="text" value={t.description}
                       onChange={e => updateTx(t.id, 'description', e.target.value)}
                       className="form-input !py-2 text-sm" autoFocus={idx === 0} />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1">
                     <input type="text" value={t.toothNumber}
                       onChange={e => updateTx(t.id, 'toothNumber', e.target.value)}
-                      placeholder="26" className="form-input !py-2 text-center font-mono text-sm" />
+                      placeholder="26" className="form-input !py-2 !px-2 text-center font-mono text-sm" />
                   </div>
                   {/* List price — read-only reference */}
                   <div className="col-span-2 text-right">
@@ -949,7 +947,7 @@ export function VisitForm({
                     </p>
                   </div>
                   {/* Charge amount — what doctor tells patient to pay */}
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <input type="number" min="0" step="any"
                       value={t.chargeAmt || ''}
                       onChange={e => updateTx(t.id, 'chargeAmt', parseFloat(e.target.value) || 0)}
@@ -975,12 +973,12 @@ export function VisitForm({
                     )}
                   </div>
                   {/* When: doing it today, or holding it for the next visit */}
-                  <div className="col-span-3 flex items-center justify-center gap-2">
-                    <div className="flex rounded-lg bg-gray-200 p-0.5">
+                  <div className="col-span-3 flex flex-wrap items-center justify-center gap-2">
+                    <div className="flex shrink-0 rounded-lg bg-gray-200 p-0.5">
                       <button type="button"
                         title="Doing this treatment today — goes on today's bill"
                         onClick={() => updateTx(t.id, 'deferToNext', false)}
-                        className={cn('h-7 rounded-md px-2.5 text-xs font-semibold transition-colors',
+                        className={cn('h-7 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition-colors',
                           !t.deferToNext ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
                         Today
                       </button>
@@ -990,7 +988,7 @@ export function VisitForm({
                           updateTx(t.id, 'deferToNext', true)
                           updateTx(t.id, 'multiSession', false)
                         }}
-                        className={cn('h-7 rounded-md px-2.5 text-xs font-semibold transition-colors',
+                        className={cn('h-7 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition-colors',
                           t.deferToNext ? 'bg-amber-500 text-white shadow-sm' : 'text-gray-500 hover:text-amber-700')}>
                         Next visit
                       </button>
@@ -999,7 +997,7 @@ export function VisitForm({
                       <button type="button"
                         title={t.multiSession ? 'This treatment continues in future sessions' : 'Mark as multi-session treatment'}
                         onClick={() => updateTx(t.id, 'multiSession', !t.multiSession)}
-                        className={cn('h-7 rounded-lg px-2 text-xs font-semibold flex items-center gap-1 transition-colors',
+                        className={cn('h-7 shrink-0 whitespace-nowrap rounded-lg px-2 text-xs font-semibold flex items-center gap-1 transition-colors',
                           t.multiSession ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-500 hover:bg-amber-100 hover:text-amber-700')}>
                         <Calendar className="w-3.5 h-3.5" />
                         {t.multiSession ? 'Future' : 'Multi'}
@@ -1378,34 +1376,6 @@ export function VisitForm({
               </div>
             </div>
 
-            {/* Full payment split */}
-            {payType === 'full' && (
-              <div>
-                <label className="form-label">Payment method</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Cash',     value: cashAmt,     set: setCashAmt     },
-                    { label: 'Card',     value: cardAmt,     set: setCardAmt     },
-                    { label: 'Transfer', value: transferAmt, set: setTransferAmt },
-                  ].map(m => (
-                    <div key={m.label}>
-                      <label className="form-label !text-xs">{m.label} (Rs.)</label>
-                      <input type="number" min="0" step="any" value={m.value || ''}
-                        onChange={e => m.set(parseFloat(e.target.value) || 0)}
-                        className="form-input text-right" />
-                    </div>
-                  ))}
-                </div>
-                {paid > 0 && paid !== totalPayable && (
-                  <p className={cn('text-sm font-semibold mt-2 flex items-center gap-1',
-                    paid > totalPayable ? 'text-amber-600' : 'text-gray-500')}>
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {paid > totalPayable ? `Overpaid by ${formatLKR(paid - totalPayable)}` : `Underpaid by ${formatLKR(totalPayable - paid)}`}
-                  </p>
-                )}
-              </div>
-            )}
-
             {/* Installments — per treatment, per visit */}
             {payType === 'installment' && (
               <div className="space-y-3">
@@ -1520,6 +1490,58 @@ export function VisitForm({
               </div>
             )}
 
+            {/* Payment received — required unless the whole bill is waived */}
+            {!fullyWaived && (
+              <div>
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <label className="form-label !mb-0">
+                    Payment received <span className="text-red-500">*</span>
+                  </label>
+                  <button type="button"
+                    onClick={() => { setCashAmt(totalPayable); setCardAmt(0); setTransferAmt(0) }}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                    All cash ({formatLKR(totalPayable)})
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  {[
+                    { label: 'Cash',     value: cashAmt,     set: setCashAmt     },
+                    { label: 'Card',     value: cardAmt,     set: setCardAmt     },
+                    { label: 'Transfer', value: transferAmt, set: setTransferAmt },
+                  ].map(m => (
+                    <div key={m.label}>
+                      <label className="form-label !text-xs">{m.label} (Rs.)</label>
+                      <input type="number" min="0" step="any" value={m.value || ''}
+                        onChange={e => m.set(parseFloat(e.target.value) || 0)}
+                        className={cn('form-input text-right',
+                          !paymentSettled && 'border-amber-400 focus:border-amber-500')} />
+                    </div>
+                  ))}
+                </div>
+                {paymentSettled ? (
+                  <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-green-700">
+                    <Check className="w-3.5 h-3.5" />
+                    {formatLKR(paid)} received — matches the bill.
+                  </p>
+                ) : (
+                  <p className={cn('mt-2 flex items-center gap-1 text-sm font-semibold',
+                    outstanding < 0 ? 'text-amber-600' : 'text-red-600')}>
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {outstanding < 0
+                      ? `Entered ${formatLKR(Math.abs(outstanding))} more than the bill`
+                      : `${formatLKR(outstanding)} still to be entered before you can complete the visit`}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {fullyWaived && (
+              <div className="flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">
+                <Check className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>Fully waived — nothing to collect, so no payment entry is needed.</span>
+              </div>
+            )}
+
             {/* Total box */}
             <div className="flex justify-end">
               <div className="rounded-2xl px-6 py-4 text-right border-2 bg-gray-50 border-gray-200 space-y-1">
@@ -1541,18 +1563,25 @@ export function VisitForm({
               <input value={billNotes} onChange={e => setBillNotes(e.target.value)}
                 className="form-input" placeholder="Any payment notes" /></div>
 
-            <div className="flex justify-between pt-3 border-t border-gray-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
               <button onClick={() => setStep('prescription')} className="btn-secondary">
                 <ChevronLeft className="w-4 h-4" />Back</button>
-              <button
-                onClick={() => handleSave(true)}
-                disabled={saving}
-                className="btn-primary !bg-green-600 hover:!bg-green-700 min-w-[220px] justify-center"
-              >
-                {saving
-                  ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</>
-                  : <><Check className="w-4 h-4" />Complete visit &amp; print</>}
-              </button>
+              <div className="flex flex-col items-end gap-1.5">
+                {!paymentSettled && (
+                  <p className="text-xs font-semibold text-red-600">
+                    Enter the amounts received (or waive the bill) to finish.
+                  </p>
+                )}
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={saving || !paymentSettled}
+                  className="btn-primary !bg-green-600 hover:!bg-green-700 min-w-[220px] justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:!bg-green-600"
+                >
+                  {saving
+                    ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</>
+                    : <><Check className="w-4 h-4" />Complete visit &amp; print</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>

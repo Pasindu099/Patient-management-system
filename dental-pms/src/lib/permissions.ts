@@ -21,12 +21,14 @@ export type Permission =
   | 'inventory.adjust'      // stock updates, stock-take (never doctors)
 
 const PERMISSIONS: Record<Permission, string[]> = {
-  // v2 rules: ADMIN has NO clinical functions; HEAD_NURSE = nurse + receptionist
+  // v2 rules: ADMIN has NO clinical functions; HEAD_NURSE = nurse + receptionist.
+  // NURSE (Dental Nurse) also covers the front desk, so it carries every
+  // RECEPTIONIST permission on top of its clinical ones.
   'clinical.visit':      ['DOCTOR'],
   'clinical.diagnosis':  ['NURSE', 'HEAD_NURSE'],
   'clinical.scribe':     ['DOCTOR', 'NURSE', 'HEAD_NURSE'],
   'patients.manage':     ['DOCTOR', 'NURSE', 'HEAD_NURSE', 'RECEPTIONIST'],
-  'queue.reception':     ['RECEPTIONIST', 'HEAD_NURSE'],
+  'queue.reception':     ['RECEPTIONIST', 'NURSE', 'HEAD_NURSE'],
   'queue.doctor':        ['DOCTOR'],
   // Doctors price the bill for the patient in front of them (billing.visit) but
   // never see a total spanning more than that one bill (money.aggregate).
@@ -54,7 +56,8 @@ export function isDoctorRole(role: string): boolean {
   return (DOCTOR_ROLES as readonly string[]).includes(role)
 }
 
-// Front-desk roles (reception dashboard view)
+// Front-desk roles (reception dashboard view). The Dental Nurse works the desk
+// as well as the chair, so it appears here and in the clinical permissions.
 export function isReceptionRole(role: string): boolean {
-  return ['RECEPTIONIST', 'HEAD_NURSE'].includes(role)
+  return ['RECEPTIONIST', 'NURSE', 'HEAD_NURSE'].includes(role)
 }
