@@ -3,12 +3,14 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { can } from '@/lib/permissions'
+import { validateNIC } from '@/lib/utils'
 
 const schema = z.object({
   firstName:         z.string().min(1),
   lastName:          z.string().min(1),
   dateOfBirth:       z.string(),
   gender:            z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
+  nicNumber:         z.string().optional(),
   phone:             z.string().min(1),
   email:             z.string().email().optional().or(z.literal('')),
   addressLine1:      z.string().optional(),
@@ -32,6 +34,15 @@ const schema = z.object({
   socialHistory:     z.string().optional(),
   extraOralExamination: z.string().optional(),
   intraOralExamination: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const nic = data.nicNumber?.trim()
+  if (nic && !validateNIC(nic)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nicNumber'],
+      message: 'Enter a valid Sri Lankan NIC',
+    })
+  }
 })
 
 function generatePatientNumber() {
@@ -61,6 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data
+    const nicNumber = data.nicNumber?.trim().toUpperCase() || null
     const selectedConditions = Object.entries(data.medicalFlags)
       .filter(([, value]) => value)
       .map(([condition]) => ({
@@ -122,6 +134,7 @@ export async function POST(req: NextRequest) {
         lastName:          data.lastName,
         dateOfBirth:       new Date(data.dateOfBirth),
         gender:            data.gender,
+        nicNumber,
         phone:             data.phone,
         email:             data.email || null,
         addressLine1:      data.addressLine1 || null,
@@ -164,6 +177,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(patient, { status: 201 })
   } catch (error: any) {
     console.error('Create patient error:', error)
+    if (error?.code === 'P2002' && Array.isArray(error?.meta?.target) && error.meta.target.includes('nicNumber')) {
+      return NextResponse.json(
+        { error: 'Another patient already has this NIC number.' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json(
       { error: 'Something went wrong. Please try again.' },
       { status: 500 }
@@ -190,6 +209,7 @@ export async function GET(req: NextRequest) {
           { firstName: { contains: search, mode: 'insensitive' } },
           { lastName:  { contains: search, mode: 'insensitive' } },
           { patientNumber: { contains: search, mode: 'insensitive' } },
+          { nicNumber: { contains: search } },
           { phone: { contains: search } },
         ],
       }),
@@ -198,6 +218,7 @@ export async function GET(req: NextRequest) {
     orderBy: { lastName: 'asc' },
     select: {
       id: true, patientNumber: true,
+      nicNumber: true,
       firstName: true, lastName: true,
       phone: true, dateOfBirth: true,
     },

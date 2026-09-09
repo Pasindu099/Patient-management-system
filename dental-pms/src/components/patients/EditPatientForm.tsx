@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { User, Phone, Mail, MapPin, AlertCircle, Check } from 'lucide-react'
-import { cn, languageOptions, MEDICAL_CHECKS } from '@/lib/utils'
+import { cn, languageOptions, MEDICAL_CHECKS, validateNIC, formatNIC } from '@/lib/utils'
 import { showToast } from '@/components/ui/Toast'
 
 // ─── VALIDATION SCHEMA ────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ const schema = z.object({
   gender:            z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'], {
                        required_error: 'Please select a gender',
                      }),
+  nicNumber:         z.string().optional(),
   phone:             z.string().min(6, 'Phone number is required'),
   email:             z.string().email('Please enter a valid email').optional().or(z.literal('')),
   addressLine1:      z.string().optional(),
@@ -40,6 +41,15 @@ const schema = z.object({
   socialHistory:     z.string().optional(),
   extraOralExamination: z.string().optional(),
   intraOralExamination: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const nic = data.nicNumber?.trim()
+  if (nic && !validateNIC(nic)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nicNumber'],
+      message: 'Enter a valid Sri Lankan NIC',
+    })
+  }
 })
 
 export type EditPatientFormData = z.infer<typeof schema>
@@ -88,10 +98,14 @@ export function EditPatientForm({ patientId, defaultValues }: Props) {
   async function onSubmit(data: EditPatientFormData) {
     setSaving(true)
     try {
+      const payload = {
+        ...data,
+        nicNumber: data.nicNumber ? formatNIC(data.nicNumber.trim()) : '',
+      }
       const res = await fetch(`/api/patients/${patientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -205,6 +219,14 @@ export function EditPatientForm({ patientId, defaultValues }: Props) {
                   </select>
                 </Field>
               </div>
+
+              <Field label="NIC number" error={errors.nicNumber?.message}>
+                <input
+                  {...register('nicNumber')}
+                  className="form-input uppercase"
+                  placeholder="200012345678 or 875730485V"
+                />
+              </Field>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Field label="Preferred language">

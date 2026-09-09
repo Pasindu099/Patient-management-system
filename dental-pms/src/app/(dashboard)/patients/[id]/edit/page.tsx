@@ -43,6 +43,7 @@ export default async function EditPatientPage({ params }: PageProps) {
     lastName:          patient.lastName,
     dateOfBirth:       patient.dateOfBirth.toISOString().split('T')[0],
     gender:            patient.gender as EditPatientFormData['gender'],
+    nicNumber:         patient.nicNumber ?? '',
     phone:             patient.phone,
     email:             patient.email ?? '',
     addressLine1:      patient.addressLine1 ?? '',
