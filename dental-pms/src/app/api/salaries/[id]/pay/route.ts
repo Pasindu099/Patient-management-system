@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { can } from '@/lib/permissions'
 import { recordLedgerTx } from '@/lib/ledger'
+import { formatDate } from '@/lib/utils'
+import { isSalaryPayable, salaryPayDate } from '@/lib/salary'
 import { z } from 'zod'
 
 const schema = z.object({ branchId: z.string().min(1) })
@@ -22,6 +24,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const record = await prisma.salaryRecord.findUnique({ where: { id } })
   if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (record.paidAt) return NextResponse.json({ error: 'Already paid' }, { status: 400 })
+  if (!isSalaryPayable(record.periodYear, record.periodMonth)) {
+    return NextResponse.json({
+      error: `This salary can be paid on ${formatDate(salaryPayDate(record.periodYear, record.periodMonth))}`,
+    }, { status: 400 })
+  }
 
   const updated = await prisma.$transaction(async tx => {
     const txRow = await recordLedgerTx(tx, {

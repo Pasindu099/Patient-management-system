@@ -13,6 +13,7 @@ import { isDoctorRole, isReceptionRole, DOCTOR_ROLES } from '@/lib/permissions'
 import { DoctorQueuePanel } from '@/components/queue/DoctorQueuePanel'
 import { DoctorStatusPanel } from '@/components/queue/DoctorStatusPanel'
 import { AdminDashboardClient } from '@/components/dashboard/AdminDashboardClient'
+import { isSalaryPayable } from '@/lib/salary'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 export const dynamic = 'force-dynamic'
@@ -139,7 +140,7 @@ export default async function DashboardPage() {
     const [
       branches, staff, monthTransactions, monthQueueItems, monthVisits,
       monthDoctorQueueItems, doctorStatusEvents, invoiceItems, doctorPayments, recentSalaryRecords,
-      monthSalaryRecords, unpaidSalaries, overdueInvoices, futureTreatmentPlans,
+      monthSalaryRecords, unpaidSalaryRecords, overdueInvoices, futureTreatmentPlans,
     ] = await Promise.all([
       prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
       prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true, role: true }, orderBy: { name: 'asc' } }),
@@ -202,7 +203,10 @@ export default async function DashboardPage() {
         where: { periodYear: today.getFullYear(), periodMonth: today.getMonth() + 1 },
         include: { user: { select: { id: true, name: true, role: true } } },
       }),
-      prisma.salaryRecord.count({ where: { paidAt: null } }),
+      prisma.salaryRecord.findMany({
+        where: { paidAt: null },
+        select: { periodYear: true, periodMonth: true },
+      }),
       prisma.invoice.count({ where: { status: 'OVERDUE' } }),
       prisma.treatmentPlan.findMany({
         where: {
@@ -224,6 +228,7 @@ export default async function DashboardPage() {
     const lowStockRows = await prisma.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM inventory_stock WHERE quantity <= "reorderThreshold"`
     const lowStockCount = Number(lowStockRows[0]?.count ?? 0)
+    const salariesDue = unpaidSalaryRecords.filter(record => isSalaryPayable(record.periodYear, record.periodMonth, todayEnd)).length
 
     adminBranches = branches
     adminStaff = staff
@@ -348,7 +353,7 @@ export default async function DashboardPage() {
       doctorTimeStats: buildDoctorTimeStats(staff, doctorStatusEvents, monthDoctorQueueItems, todayEnd),
       staffStats,
       salaryRecords: JSON.parse(JSON.stringify(recentSalaryRecords)),
-      risks: { overdueInvoices, lowStockCount, unpaidSalaries },
+      risks: { overdueInvoices, lowStockCount, salariesDue },
     }
   }
 

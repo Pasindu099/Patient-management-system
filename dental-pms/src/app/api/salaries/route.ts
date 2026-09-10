@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { can } from '@/lib/permissions'
 import { toCents } from '@/lib/money'
+import { salaryPayDateIso } from '@/lib/salary'
 import { z } from 'zod'
 
 export async function GET(req: NextRequest) {
@@ -20,7 +21,10 @@ export async function GET(req: NextRequest) {
     include: { user: { select: { name: true, role: true } } },
     orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
   })
-  return NextResponse.json(records)
+  return NextResponse.json(records.map(record => ({
+    ...record,
+    payDate: salaryPayDateIso(record.periodYear, record.periodMonth),
+  })))
 }
 
 const schema = z.object({
@@ -56,7 +60,10 @@ export async function POST(req: NextRequest) {
         notes: d.notes || null,
       },
     })
-    return NextResponse.json(record, { status: 201 })
+    return NextResponse.json({
+      ...record,
+      payDate: salaryPayDateIso(record.periodYear, record.periodMonth),
+    }, { status: 201 })
   } catch (e: any) {
     if (e?.code === 'P2002') {
       return NextResponse.json({ error: 'A salary record already exists for this staff member and month' }, { status: 409 })

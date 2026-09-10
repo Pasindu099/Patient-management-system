@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { can } from '@/lib/permissions'
 import { formatCents } from '@/lib/money'
 import { cn, formatDate } from '@/lib/utils'
+import { isSalaryPayable, salaryPayDate } from '@/lib/salary'
 import { StaffContractForm } from '@/components/staff/StaffContractForm'
 import {
   ArrowLeft, BriefcaseBusiness, CalendarDays, Stethoscope, TrendingUp,
@@ -56,6 +57,7 @@ export default async function StaffMemberProfilePage({ params }: { params: Promi
   const isDoctor = staff.role === 'DOCTOR'
   const currentContract = staff.contracts.find(contract => !contract.endDate) ?? staff.contracts[0]
   const monthSalary = staff.salaryRecords.find(record => record.periodYear === today.getFullYear() && record.periodMonth === today.getMonth() + 1)
+  const currentMonthPayDate = salaryPayDate(today.getFullYear(), today.getMonth() + 1)
 
   const [dayQueueItems, weekQueueItems, monthQueueItems, doctorPayments, recentVisits] = isDoctor ? await Promise.all([
     prisma.receptionQueueItem.findMany({
@@ -116,7 +118,12 @@ export default async function StaffMemberProfilePage({ params }: { params: Promi
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Fixed monthly salary" value={currentContract ? formatCents(currentContract.baseSalaryCents) : 'Not set'} icon={BriefcaseBusiness} tone="blue" />
-        <SummaryCard label="This month salary" value={monthSalary ? formatCents(monthSalary.netCents) : 'No record'} icon={Wallet} tone={monthSalary?.paidAt ? 'green' : 'amber'} />
+        <SummaryCard
+          label={monthSalary?.paidAt ? 'This month paid' : `Pay date ${formatDate(currentMonthPayDate)}`}
+          value={monthSalary ? formatCents(monthSalary.netCents) : 'No record'}
+          icon={Wallet}
+          tone={monthSalary?.paidAt ? 'green' : 'amber'}
+        />
         <SummaryCard label={isDoctor ? 'Patients this week' : 'Salary records'} value={isDoctor ? weekStats.total.toLocaleString() : staff.salaryRecords.length.toLocaleString()} icon={Users} tone="purple" />
         <SummaryCard label={isDoctor ? 'Collections this month' : 'Joined'} value={isDoctor ? formatCents(collectionsCents) : formatDate(staff.createdAt)} icon={TrendingUp} tone="green" />
       </div>
@@ -247,7 +254,10 @@ function SalaryRecordsTable({ records }: { records: any[] }) {
         <div key={record.id} className="flex items-center justify-between gap-4 py-3">
           <div>
             <p className="font-bold text-gray-900">{record.periodMonth}/{record.periodYear}</p>
-            <p className="text-sm font-medium text-gray-500">{record.paidAt ? `Paid ${formatDate(record.paidAt)}` : 'Unpaid'}</p>
+            <p className="text-sm font-medium text-gray-500">Pay date {formatDate(salaryPayDate(record.periodYear, record.periodMonth))}</p>
+            <p className="text-xs font-semibold text-gray-400">
+              {record.paidAt ? `Paid ${formatDate(record.paidAt)}` : isSalaryPayable(record.periodYear, record.periodMonth) ? 'Due now' : 'Scheduled'}
+            </p>
             {record.notes && <p className="text-xs font-medium text-gray-400">{record.notes}</p>}
           </div>
           <div className="text-right">

@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Save } from 'lucide-react'
 import { showToast } from '@/components/ui/Toast'
+import { formatDate } from '@/lib/utils'
+import { salaryPayDate } from '@/lib/salary'
 
 export function StaffContractForm({
   userId,
@@ -22,6 +24,7 @@ export function StaffContractForm({
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [creatingRecord, setCreatingRecord] = useState(false)
+  const currentMonthPayDate = salaryPayDate(now.getFullYear(), now.getMonth() + 1)
 
   async function saveContract() {
     const base = Number(baseSalary)
@@ -73,7 +76,7 @@ export function StaffContractForm({
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Could not create salary record')
-      showToast('success', 'This month salary record created')
+      showToast('success', `This month salary record created for payment on ${formatDate(currentMonthPayDate)}`)
       router.refresh()
     } catch (e: any) {
       showToast('error', e.message)
@@ -109,7 +112,7 @@ export function StaffContractForm({
         </button>
         <button onClick={createThisMonthRecord} disabled={creatingRecord} className="btn-secondary">
           <Plus className="h-4 w-4" />
-          {creatingRecord ? 'Creating...' : 'Create this month salary record'}
+          {creatingRecord ? 'Creating...' : `Create salary record for ${formatDate(currentMonthPayDate)}`}
         </button>
       </div>
     </div>

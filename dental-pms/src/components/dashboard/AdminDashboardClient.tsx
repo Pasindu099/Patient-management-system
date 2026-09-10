@@ -4,11 +4,12 @@ import { useState } from 'react'
 import type React from 'react'
 import {
   Activity, AlertTriangle, Banknote, BarChart3, BriefcaseBusiness,
-  ClipboardList, Clock, Package, Plus, Receipt, RefreshCw, TrendingDown,
+  CalendarDays, CheckCircle, ClipboardList, Clock, Package, Plus, Receipt, TrendingDown,
   TrendingUp, Users,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { formatCents } from '@/lib/money'
+import { isSalaryPayable, salaryPayDate, salaryPeriodLabel } from '@/lib/salary'
 import { showToast } from '@/components/ui/Toast'
 
 const EXPENSE_CATEGORIES = [
@@ -40,8 +41,9 @@ export function AdminDashboardClient({
   const [salaryAllowances, setSalaryAllowances] = useState('')
   const [salaryDeductions, setSalaryDeductions] = useState('')
   const [salaryNote, setSalaryNote] = useState('')
-  const [salaryPayNow, setSalaryPayNow] = useState(true)
   const [salarySaving, setSalarySaving] = useState(false)
+  const [salaryPayingId, setSalaryPayingId] = useState<string | null>(null)
+  const selectedSalaryPayDate = salaryPayDate(Number(salaryYear), Number(salaryMonth))
 
   async function addExpense() {
     const amount = Number(expenseAmount)
@@ -108,17 +110,7 @@ export function AdminDashboardClient({
       const record = await res.json()
       if (!res.ok) throw new Error(record.error ?? 'Could not create salary record')
 
-      if (salaryPayNow) {
-        const payRes = await fetch(`/api/salaries/${record.id}/pay`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ branchId: salaryBranchId }),
-        })
-        const payJson = await payRes.json()
-        if (!payRes.ok) throw new Error(payJson.error ?? 'Salary created, but could not mark as paid')
-      }
-
-      showToast('success', salaryPayNow ? 'Salary recorded and paid' : 'Salary record created')
+      showToast('success', `Salary record created for ${salaryPeriodLabel(Number(salaryYear), Number(salaryMonth))}`)
       setSalaryBase('')
       setSalaryAllowances('')
       setSalaryDeductions('')
@@ -128,6 +120,30 @@ export function AdminDashboardClient({
       showToast('error', e.message)
     } finally {
       setSalarySaving(false)
+    }
+  }
+
+  async function paySalary(recordId: string) {
+    if (!salaryBranchId) {
+      showToast('error', 'Choose the branch paid from')
+      return
+    }
+
+    setSalaryPayingId(recordId)
+    try {
+      const payRes = await fetch(`/api/salaries/${recordId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchId: salaryBranchId }),
+      })
+      const payJson = await payRes.json()
+      if (!payRes.ok) throw new Error(payJson.error ?? 'Could not mark salary as paid')
+      showToast('success', 'Salary marked paid and added to expenses')
+      window.location.reload()
+    } catch (e: any) {
+      showToast('error', e.message)
+    } finally {
+      setSalaryPayingId(null)
     }
   }
 
@@ -202,6 +218,12 @@ export function AdminDashboardClient({
         </Panel>
 
         <Panel title="Add staff salary" icon={BriefcaseBusiness}>
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <CalendarDays className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <p className="font-medium">
+              {salaryPeriodLabel(Number(salaryYear), Number(salaryMonth))} salary is scheduled for {formatDate(selectedSalaryPayDate)}.
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Staff member">
               <select value={salaryUserId} onChange={e => setSalaryUserId(e.target.value)} className="form-input">
@@ -232,13 +254,9 @@ export function AdminDashboardClient({
               <input value={salaryNote} onChange={e => setSalaryNote(e.target.value)} className="form-input" placeholder="July salary" />
             </Field>
           </div>
-          <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
-            <input type="checkbox" checked={salaryPayNow} onChange={e => setSalaryPayNow(e.target.checked)} className="h-4 w-4 rounded border-gray-300" />
-            Mark as paid and include in monthly expenses now
-          </label>
           <button onClick={addSalary} disabled={salarySaving} className="btn-primary mt-4 w-full justify-center">
             <Plus className="h-4 w-4" />
-            {salarySaving ? 'Saving...' : 'Save salary'}
+            {salarySaving ? 'Saving...' : 'Create salary record'}
           </button>
         </Panel>
       </div>
@@ -248,7 +266,7 @@ export function AdminDashboardClient({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <RiskBox label="Overdue invoices" value={data.risks.overdueInvoices} tone="red" />
             <RiskBox label="Low stock items" value={data.risks.lowStockCount} tone="amber" />
-            <RiskBox label="Unpaid salaries" value={data.risks.unpaidSalaries} tone="blue" />
+            <RiskBox label="Salaries due" value={data.risks.salariesDue} tone="blue" />
           </div>
         </Panel>
         <Panel title="Recent salaries" icon={ClipboardList}>
@@ -259,9 +277,27 @@ export function AdminDashboardClient({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-gray-900">{record.user.name}</p>
-                  <p className="text-sm text-gray-500">{record.periodMonth}/{record.periodYear} - {record.paidAt ? `Paid ${formatDate(record.paidAt)}` : 'Unpaid'}</p>
+                  <p className="text-sm text-gray-500">
+                    {salaryPeriodLabel(record.periodYear, record.periodMonth)} - Pay date {formatDate(salaryPayDate(record.periodYear, record.periodMonth))}
+                  </p>
+                  <p className="text-xs font-semibold text-gray-400">
+                    {record.paidAt ? `Paid ${formatDate(record.paidAt)}` : isSalaryPayable(record.periodYear, record.periodMonth) ? 'Due now' : 'Scheduled'}
+                  </p>
                 </div>
-                <p className={cn('font-bold', record.paidAt ? 'text-green-700' : 'text-amber-700')}>{formatCents(record.netCents)}</p>
+                <div className="flex flex-col items-end gap-2">
+                  <p className={cn('font-bold', record.paidAt ? 'text-green-700' : 'text-amber-700')}>{formatCents(record.netCents)}</p>
+                  {!record.paidAt && isSalaryPayable(record.periodYear, record.periodMonth) && (
+                    <button
+                      type="button"
+                      onClick={() => paySalary(record.id)}
+                      disabled={salaryPayingId === record.id}
+                      className="inline-flex min-h-[32px] items-center gap-1.5 rounded-lg bg-green-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      {salaryPayingId === record.id ? 'Paying...' : 'Pay'}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           />

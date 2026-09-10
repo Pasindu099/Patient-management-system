@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Wallet, Plus,
-  Users, SlidersHorizontal, RefreshCw,
+  Users, SlidersHorizontal, RefreshCw, BriefcaseBusiness, CalendarDays, CheckCircle,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { formatCents } from '@/lib/money'
+import { isSalaryPayable, salaryPayDate, salaryPeriodLabel } from '@/lib/salary'
 import { showToast } from '@/components/ui/Toast'
 
 interface Props {
   branches: { id: string; name: string }[]
+  salaryRecords: any[]
 }
 
 const EXPENSE_CATEGORIES = [
@@ -27,7 +29,7 @@ function isoDaysAgo(days: number) {
   return d.toISOString().slice(0, 10)
 }
 
-export function FinanceDashboard({ branches }: Props) {
+export function FinanceDashboard({ branches, salaryRecords }: Props) {
   const [branchId, setBranchId] = useState('')
   const [from, setFrom]         = useState(isoDaysAgo(30))
   const [to, setTo]             = useState(isoDaysAgo(0))
@@ -42,6 +44,8 @@ export function FinanceDashboard({ branches }: Props) {
   const [expBranch, setExpBranch]     = useState(branches[0]?.id ?? '')
   const [expNotes, setExpNotes]       = useState('')
   const [saving, setSaving]           = useState(false)
+  const [salaryBranch, setSalaryBranch] = useState(branches[0]?.id ?? '')
+  const [salaryPayingId, setSalaryPayingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -81,6 +85,30 @@ export function FinanceDashboard({ branches }: Props) {
       showToast('error', 'Could not record expense', e.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function paySalary(recordId: string) {
+    if (!salaryBranch) {
+      showToast('error', 'Choose the branch paid from')
+      return
+    }
+
+    setSalaryPayingId(recordId)
+    try {
+      const res = await fetch(`/api/salaries/${recordId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchId: salaryBranch }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Could not mark salary as paid')
+      showToast('success', 'Salary marked paid and added to expenses')
+      window.location.reload()
+    } catch (e: any) {
+      showToast('error', e.message)
+    } finally {
+      setSalaryPayingId(null)
     }
   }
 
@@ -185,6 +213,49 @@ export function FinanceDashboard({ branches }: Props) {
           />
         </Section>
       </div>
+
+      <Section title="Salary schedule" icon={BriefcaseBusiness}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-2 text-sm text-gray-600">
+            <CalendarDays className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-500" />
+            <p className="font-medium">Monthly salaries are paid on the final calendar day of each salary month.</p>
+          </div>
+          <select value={salaryBranch} onChange={e => setSalaryBranch(e.target.value)} className="form-input !w-auto !py-2 !text-sm">
+            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </div>
+        <SimpleTable
+          headers={['Staff', 'Period', 'Pay date', 'Status', 'Amount', '']}
+          rows={salaryRecords.slice(0, 24).map((record: any) => {
+            const payable = isSalaryPayable(record.periodYear, record.periodMonth)
+            return [
+              `${record.user.name} (${record.user.role.replace('_', ' ')})`,
+              salaryPeriodLabel(record.periodYear, record.periodMonth),
+              formatDate(salaryPayDate(record.periodYear, record.periodMonth)),
+              <span key="s" className={cn(
+                'rounded-full px-2 py-0.5 text-xs font-bold',
+                record.paidAt ? 'bg-green-100 text-green-700' : payable ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+              )}>
+                {record.paidAt ? 'Paid' : payable ? 'Due now' : 'Scheduled'}
+              </span>,
+              <span key="a" className="font-bold text-gray-900">{formatCents(record.netCents)}</span>,
+              !record.paidAt && payable ? (
+                <button
+                  key="p"
+                  type="button"
+                  onClick={() => paySalary(record.id)}
+                  disabled={salaryPayingId === record.id}
+                  className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  {salaryPayingId === record.id ? 'Paying...' : 'Pay'}
+                </button>
+              ) : null,
+            ]
+          })}
+          empty="No salary records yet"
+        />
+      </Section>
 
       {/* Debtors */}
       <Section title={`Outstanding balances (${debtors.length})`} icon={Users}>
