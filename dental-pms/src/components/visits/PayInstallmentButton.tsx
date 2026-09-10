@@ -3,14 +3,15 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Receipt, CheckCircle } from 'lucide-react'
-import { cn, formatLKR } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 import { showToast } from '@/components/ui/Toast'
 
 interface Props {
   installmentId: string
   invoiceId:     string
-  visitId:       string
+  visitId?:      string
   amount:        number
+  currency?:     'LKR' | 'USD'
 }
 
 const METHODS = [
@@ -19,7 +20,7 @@ const METHODS = [
   { value: 'bank_transfer', label: 'Transfer' },
 ]
 
-export function PayInstallmentButton({ installmentId, invoiceId, visitId, amount }: Props) {
+export function PayInstallmentButton({ installmentId, invoiceId, visitId, amount, currency = 'LKR' }: Props) {
   const router  = useRouter()
   const [open,   setOpen]   = useState(false)
   const [method, setMethod] = useState('cash')
@@ -35,7 +36,7 @@ export function PayInstallmentButton({ installmentId, invoiceId, visitId, amount
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed')
-      showToast('success', `${formatLKR(amount)} recorded via ${method.replace('_', ' ')}`)
+      showToast('success', `${formatCurrency(amount, currency)} recorded via ${method.replace('_', ' ')}`)
       setOpen(false)
       router.refresh()
     } catch (e: any) {
@@ -52,14 +53,14 @@ export function PayInstallmentButton({ installmentId, invoiceId, visitId, amount
         className="btn-primary !bg-green-600 hover:!bg-green-700"
       >
         <Receipt className="w-4 h-4" />
-        Pay {formatLKR(amount)} instalment
+        Pay {formatCurrency(amount, currency)} instalment
       </button>
     )
   }
 
   return (
     <div className="flex items-center gap-3 bg-green-50 border-2 border-green-300 rounded-xl px-4 py-3 flex-wrap">
-      <p className="text-base font-bold text-green-900">{formatLKR(amount)}</p>
+      <p className="text-base font-bold text-green-900">{formatCurrency(amount, currency)}</p>
       <div className="flex gap-2">
         {METHODS.map(m => (
           <button

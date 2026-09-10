@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { toCents, fromCents } from '@/lib/money'
 import { can } from '@/lib/permissions'
+import { recordLedgerTx } from '@/lib/ledger'
 
 const canBill = (role: string) =>
   can(role, 'billing.collect') || can(role, 'money.aggregate')
@@ -27,6 +28,14 @@ const createSchema = z.object({
   dueDate:      z.string().optional().nullable(),
   notes:        z.string().optional().nullable(),
   items:        z.array(itemSchema).min(1),
+  installmentPlan: z.object({
+    enabled:              z.boolean().default(false),
+    numberOfInstallments: z.number().int().min(1).max(60).default(10),
+    paidInstallments:     z.number().int().min(0).max(60).default(0),
+    paidAt:               z.string().optional().nullable(),
+    method:               z.enum(['cash', 'card', 'bank_transfer']).default('cash'),
+    notes:                z.string().optional().nullable(),
+  }).optional(),
 })
 
 function generateInvoiceNumber() {
@@ -57,47 +66,119 @@ export async function POST(req: NextRequest) {
   const discountCents = toCents(d.discount)
   const taxCents      = toCents(d.tax)
   const totalCents    = subtotalCents - discountCents + taxCents
-  const balanceCents  = totalCents
+  const plan = d.installmentPlan?.enabled ? d.installmentPlan : null
+  const installmentCount = plan?.numberOfInstallments ?? 0
+  const paidInstallmentCount = plan ? Math.min(plan.paidInstallments, installmentCount) : 0
+  const installmentAmounts = plan
+    ? Array.from({ length: installmentCount }, (_, idx) => {
+        const base = Math.floor(totalCents / installmentCount)
+        const remainder = totalCents % installmentCount
+        return base + (idx < remainder ? 1 : 0)
+      })
+    : []
+  const openingPaidCents = installmentAmounts
+    .slice(0, paidInstallmentCount)
+    .reduce((sum, amount) => sum + amount, 0)
+  const balanceCents  = Math.max(0, totalCents - openingPaidCents)
+  const initialStatus = balanceCents === 0 ? 'PAID' : openingPaidCents > 0 ? 'PARTIAL' : 'SENT'
+  const openingPaidAt = plan?.paidAt ? new Date(plan.paidAt) : new Date()
 
   let invoiceNumber = generateInvoiceNumber()
   while (await prisma.invoice.findUnique({ where: { invoiceNumber } })) {
     invoiceNumber = generateInvoiceNumber()
   }
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      invoiceNumber,
-      patientId:    d.patientId,
-      branchId:     d.branchId || null,
-      currency:     d.currency,
-      exchangeRate: d.exchangeRate || null,
-      status:       'SENT',
-      subtotalCents,
-      discountCents,
-      taxCents,
-      totalCents,
-      amountPaidCents: 0,
-      balanceCents,
-      subtotal:   fromCents(subtotalCents), // legacy mirrors
-      discount:   fromCents(discountCents),
-      tax:        fromCents(taxCents),
-      total:      fromCents(totalCents),
-      amountPaid: 0,
-      balance:    fromCents(balanceCents),
-      dueDate:      d.dueDate ? new Date(d.dueDate) : null,
-      notes:        d.notes || null,
-      items: {
-        create: d.items.map(item => ({
-          description:  item.description,
-          toothNumbers: item.toothNumbers || null,
-          quantity:     item.quantity,
-          unitPriceCents: toCents(item.unitPrice),
-          totalCents:     item.quantity * toCents(item.unitPrice),
-          unitPrice:    fromCents(toCents(item.unitPrice)),
-          total:        fromCents(item.quantity * toCents(item.unitPrice)),
-        })),
+  const invoice = await prisma.$transaction(async tx => {
+    const created = await tx.invoice.create({
+      data: {
+        invoiceNumber,
+        patientId:    d.patientId,
+        branchId:     d.branchId || null,
+        currency:     d.currency,
+        exchangeRate: d.exchangeRate || null,
+        status:       initialStatus,
+        subtotalCents,
+        discountCents,
+        taxCents,
+        totalCents,
+        amountPaidCents: openingPaidCents,
+        balanceCents,
+        subtotal:   fromCents(subtotalCents), // legacy mirrors
+        discount:   fromCents(discountCents),
+        tax:        fromCents(taxCents),
+        total:      fromCents(totalCents),
+        amountPaid: fromCents(openingPaidCents),
+        balance:    fromCents(balanceCents),
+        paidDate:   initialStatus === 'PAID' ? openingPaidAt : null,
+        dueDate:      d.dueDate ? new Date(d.dueDate) : null,
+        notes:        d.notes || null,
+        items: {
+          create: d.items.map(item => ({
+            description:  item.description,
+            toothNumbers: item.toothNumbers || null,
+            quantity:     item.quantity,
+            unitPriceCents: toCents(item.unitPrice),
+            totalCents:     item.quantity * toCents(item.unitPrice),
+            unitPrice:    fromCents(toCents(item.unitPrice)),
+            total:        fromCents(item.quantity * toCents(item.unitPrice)),
+          })),
+        },
+        installmentPlan: plan ? {
+          create: {
+            patientId: d.patientId,
+            totalAmountCents: totalCents,
+            totalAmount: fromCents(totalCents),
+            numberOfInstallments: installmentCount,
+            amountPerInstallmentCents: installmentAmounts[0] ?? 0,
+            amountPerInstallment: fromCents(installmentAmounts[0] ?? 0),
+            notes: plan.notes || null,
+            createdById: session.user.id,
+            installments: {
+              create: installmentAmounts.map((amountCents, idx) => ({
+                number: idx + 1,
+                amountCents,
+                amount: fromCents(amountCents),
+                paidAt: idx < paidInstallmentCount ? openingPaidAt : null,
+                paidAmountCents: idx < paidInstallmentCount ? amountCents : null,
+                paidAmount: idx < paidInstallmentCount ? fromCents(amountCents) : null,
+                paymentMethod: idx < paidInstallmentCount ? plan.method : null,
+                notes: idx < paidInstallmentCount ? 'Recorded as historical ortho payment' : null,
+              })),
+            },
+          },
+        } : undefined,
       },
-    },
+    })
+
+    for (let idx = 0; idx < paidInstallmentCount; idx += 1) {
+      const amountCents = installmentAmounts[idx]
+      const payment = await tx.payment.create({
+        data: {
+          invoiceId: created.id,
+          amountCents,
+          amount: fromCents(amountCents),
+          currency: d.currency,
+          method: plan!.method,
+          notes: `Historical ortho installment ${idx + 1}/${installmentCount}`,
+          paidAt: openingPaidAt,
+          processedById: session.user.id,
+        },
+      })
+      await recordLedgerTx(tx, {
+        direction:        'IN',
+        amountCents,
+        currency:         d.currency,
+        categoryCode:     'PATIENT_PAYMENT',
+        branchId:         d.branchId || null,
+        recordedByUserId: session.user.id,
+        refType:          'payment',
+        refId:            payment.id,
+        notes:            `Historical ortho installment ${idx + 1}/${installmentCount}`,
+        date:             openingPaidAt,
+      })
+    }
+
+    return created
   })
 
   await prisma.auditLog.create({
@@ -107,7 +188,7 @@ export async function POST(req: NextRequest) {
       action:     'CREATE',
       resource:   'invoice',
       resourceId: invoice.id,
-      details:    { invoiceNumber, totalCents, currency: d.currency },
+      details:    { invoiceNumber, totalCents, currency: d.currency, installmentCount, paidInstallmentCount },
     },
   })
 
@@ -128,12 +209,13 @@ export async function GET(req: NextRequest) {
   const patientId = searchParams.get('patientId')
   const statusParam = searchParams.get('status')
   const status = invoiceStatuses.find(value => value === statusParam)
+  const canCollect = can(session.user.role, 'billing.collect')
 
   const invoices = await prisma.invoice.findMany({
     where: {
       ...(patientId ? { patientId } : {}),
       ...(status ? { status } : {}),
-      ...(canSeeAllMoney ? {} : { visitInvoices: { some: { visit: { doctorId: session.user.id } } } }),
+      ...(canSeeAllMoney || canCollect ? {} : { visitInvoices: { some: { visit: { doctorId: session.user.id } } } }),
     },
     orderBy: { createdAt: 'desc' },
     take: 50,

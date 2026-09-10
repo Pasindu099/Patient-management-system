@@ -3,16 +3,20 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { can } from '@/lib/permissions'
 import { z } from 'zod'
+import { validateNIC } from '@/lib/utils'
 
 const schema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().min(1),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
+  nicNumber: z.string().optional(),
   phone: z.string().min(1),
   email: z.string().email().optional().or(z.literal('')),
   addressLine1: z.string().optional(),
   city: z.string().optional(),
+  preferredLanguage: z.string().default('en'),
+  communicationPref: z.string().default('email'),
   emergencyName: z.string().optional(),
   emergencyPhone: z.string().optional(),
   emergencyRelation: z.string().optional(),
@@ -31,6 +35,15 @@ const schema = z.object({
   extraOralExamination: z.string().optional(),
   intraOralExamination: z.string().optional(),
   notes: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const nic = data.nicNumber?.trim()
+  if (nic && !validateNIC(nic)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nicNumber'],
+      message: 'Enter a valid Sri Lankan NIC',
+    })
+  }
 })
 
 function generatePatientNumber() {
@@ -59,50 +72,52 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-  if (!can(session.user.role, 'queue.reception') && !can(session.user.role, 'patients.manage')) {
-    return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
-  }
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    if (!can(session.user.role, 'queue.reception') && !can(session.user.role, 'patients.manage')) {
+      return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
+    }
 
-  const { id } = await params
-  const parsed = schema.safeParse(await req.json())
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Please check all required fields', details: parsed.error.flatten() }, { status: 400 })
-  }
+    const { id } = await params
+    const parsed = schema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Please check all required fields', details: parsed.error.flatten() }, { status: 400 })
+    }
 
-  const queueItem = await prisma.receptionQueueItem.findUnique({
-    where: { id },
-    select: { id: true, branchId: true, queueNumber: true, patientId: true, intakeStatus: true },
-  })
-  if (!queueItem) return NextResponse.json({ error: 'Queue item not found' }, { status: 404 })
-  if (queueItem.patientId && queueItem.intakeStatus !== 'PAPER_PENDING') {
-    return NextResponse.json({ error: 'This queue token is already linked to a completed patient profile' }, { status: 409 })
-  }
+    const queueItem = await prisma.receptionQueueItem.findUnique({
+      where: { id },
+      select: { id: true, branchId: true, queueNumber: true, patientId: true, intakeStatus: true },
+    })
+    if (!queueItem) return NextResponse.json({ error: 'Queue item not found' }, { status: 404 })
+    if (queueItem.patientId && queueItem.intakeStatus !== 'PAPER_PENDING') {
+      return NextResponse.json({ error: 'This queue token is already linked to a completed patient profile' }, { status: 409 })
+    }
 
-  const data = parsed.data
-  const patientNumber = await uniquePatientNumber()
-  const displayName = `${data.firstName} ${data.lastName}`
-  const selectedConditions = Object.entries(data.medicalFlags)
+    const data = parsed.data
+    const nicNumber = data.nicNumber?.trim().toUpperCase() || null
+    const patientNumber = await uniquePatientNumber()
+    const displayName = `${data.firstName} ${data.lastName}`
+    const selectedConditions = Object.entries(data.medicalFlags)
     .filter(([, value]) => value)
     .map(([condition]) => ({
       condition,
       status: 'ACTIVE',
       recordedAt: new Date().toISOString(),
     }))
-  const historyNotes = {
-    dietaryHistory: clean(data.dietaryHistory),
-    brushingHistory: clean(data.brushingHistory),
-    medicalHistoryNote: clean(data.medicalHistoryNote),
-    oralHygieneHistory: clean(data.oralHygieneHistory),
-    habitHistory: clean(data.habitHistory),
-    familyHistory: clean(data.familyHistory),
-    socialHistory: clean(data.socialHistory),
-    extraOralExamination: clean(data.extraOralExamination),
-    intraOralExamination: clean(data.intraOralExamination),
-  }
+    const historyNotes = {
+      dietaryHistory: clean(data.dietaryHistory),
+      brushingHistory: clean(data.brushingHistory),
+      medicalHistoryNote: clean(data.medicalHistoryNote),
+      oralHygieneHistory: clean(data.oralHygieneHistory),
+      habitHistory: clean(data.habitHistory),
+      familyHistory: clean(data.familyHistory),
+      socialHistory: clean(data.socialHistory),
+      extraOralExamination: clean(data.extraOralExamination),
+      intraOralExamination: clean(data.intraOralExamination),
+    }
 
-  const result = await prisma.$transaction(async tx => {
+    const result = await prisma.$transaction(async tx => {
     const medicalHistoryData = {
       allergies: data.medicalFlags.allergies
         ? [{ substance: data.allergyDetails, severity: 'UNKNOWN', reaction: data.allergyDetails, confirmed: false }]
@@ -138,10 +153,13 @@ export async function POST(
             lastName: data.lastName,
             dateOfBirth: new Date(data.dateOfBirth),
             gender: data.gender,
+            nicNumber,
             phone: data.phone,
             email: clean(data.email),
             addressLine1: clean(data.addressLine1),
             city: clean(data.city),
+            preferredLanguage: data.preferredLanguage,
+            communicationPref: data.communicationPref,
             emergencyName: clean(data.emergencyName),
             emergencyPhone: clean(data.emergencyPhone),
             emergencyRelation: clean(data.emergencyRelation),
@@ -162,10 +180,13 @@ export async function POST(
             lastName: data.lastName,
             dateOfBirth: new Date(data.dateOfBirth),
             gender: data.gender,
+            nicNumber,
             phone: data.phone,
             email: clean(data.email),
             addressLine1: clean(data.addressLine1),
             city: clean(data.city),
+            preferredLanguage: data.preferredLanguage,
+            communicationPref: data.communicationPref,
             emergencyName: clean(data.emergencyName),
             emergencyPhone: clean(data.emergencyPhone),
             emergencyRelation: clean(data.emergencyRelation),
@@ -242,5 +263,18 @@ export async function POST(
     return { patient, queueItem: updatedQueue }
   })
 
-  return NextResponse.json(result, { status: 201 })
+    return NextResponse.json(result, { status: 201 })
+  } catch (error: any) {
+    console.error('Create queued patient error:', error)
+    if (error?.code === 'P2002' && Array.isArray(error?.meta?.target) && error.meta.target.includes('nicNumber')) {
+      return NextResponse.json(
+        { error: 'Another patient already has this NIC number.' },
+        { status: 409 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Something went wrong. Please try again.' },
+      { status: 500 }
+    )
+  }
 }

@@ -66,7 +66,13 @@ export default async function PatientProfilePage({ params }: PageProps) {
         ? {
             orderBy: { createdAt: 'desc' },
             take: 5,
-            include: { items: true, payments: true },
+            include: {
+              items: true,
+              payments: true,
+              installmentPlan: {
+                include: { installments: { orderBy: { number: 'asc' } } },
+              },
+            },
           }
         : false,
       riskAssessments: { orderBy: { assessedAt: 'desc' }, take: 1 },
@@ -118,6 +124,15 @@ export default async function PatientProfilePage({ params }: PageProps) {
   const outstandingBalance = ((patient as any).invoices ?? [])
     .filter((i: any) => ['SENT', 'PARTIAL', 'OVERDUE'].includes(i.status))
     .reduce((sum: number, i: any) => sum + i.balance, 0)
+  const activeInstallmentInvoice = ((patient as any).invoices ?? [])
+    .find((i: any) => i.installmentPlan && ['SENT', 'PARTIAL', 'OVERDUE'].includes(i.status))
+  const activeInstallmentPlan = activeInstallmentInvoice?.installmentPlan ?? null
+  const activeInstallmentsPaid = activeInstallmentPlan
+    ? activeInstallmentPlan.installments.filter((i: any) => i.paidAt).length
+    : 0
+  const activeNextInstallment = activeInstallmentPlan
+    ? activeInstallmentPlan.installments.find((i: any) => !i.paidAt)
+    : null
 
   const AVATAR_COLORS = ['bg-blue-500', 'bg-teal-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500']
   const avatarBg = AVATAR_COLORS[fullName.charCodeAt(0) % AVATAR_COLORS.length]
@@ -254,6 +269,26 @@ export default async function PatientProfilePage({ params }: PageProps) {
               )}
             </div>
           </div>
+          {canSeeBalance && activeInstallmentPlan && (
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <Receipt className="w-4 h-4 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">
+                      Active installment plan: {activeInstallmentsPaid}/{activeInstallmentPlan.numberOfInstallments} paid
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Next installment: {activeNextInstallment ? formatLKR(activeNextInstallment.amount) : 'None'} | Balance: {formatLKR(activeInstallmentInvoice.balance)}
+                    </p>
+                  </div>
+                </div>
+                <Link href={`/billing/${activeInstallmentInvoice.id}`} className="btn-secondary !text-sm !px-3 !py-2">
+                  Open bill
+                </Link>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3 mt-5 pt-4 border-t border-gray-100">
             {([
               { label: 'Total visits', value: String(patient.visits.length), color: 'bg-blue-50 text-blue-700' },

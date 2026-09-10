@@ -9,7 +9,9 @@ import { can } from '@/lib/permissions'
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-  if (!can(session.user.role, 'billing.collect')) {
+  const canCollect = can(session.user.role, 'billing.collect')
+  const canSeeAllMoney = can(session.user.role, 'money.aggregate')
+  if (!canCollect && !canSeeAllMoney) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
           invoice: {
             select: {
               id: true,
+              currency: true,
               visitInvoices: { select: { visit: { select: { doctorId: true } } } },
             },
           },
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (installment.plan.invoiceId !== invoiceId) {
     return NextResponse.json({ error: 'Installment does not belong to this invoice' }, { status: 400 })
   }
-  if (!installment.plan.invoice.visitInvoices.some(link => link.visit.doctorId === session.user.id)) {
+  if (!canSeeAllMoney && !canCollect && !installment.plan.invoice.visitInvoices.some(link => link.visit.doctorId === session.user.id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   if (installment.paidAt) return NextResponse.json({ error: 'Already paid' }, { status: 400 })
@@ -65,7 +68,7 @@ export async function POST(req: NextRequest) {
         invoiceId,
         amountCents,
         amount:          fromCents(amountCents), // legacy mirror
-        currency:        'LKR',
+        currency:        installment.plan.invoice.currency,
         method:          method ?? 'cash',
         notes:           `Installment ${installment.number} of ${installment.plan.numberOfInstallments}`,
         processedById:   session.user.id,
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest) {
       await recordLedgerTx(tx, {
         direction:        'IN',
         amountCents,
+        currency:         installment.plan.invoice.currency,
         categoryCode:     'PATIENT_PAYMENT',
         branchId:         invoice.branchId,
         recordedByUserId: session.user.id,

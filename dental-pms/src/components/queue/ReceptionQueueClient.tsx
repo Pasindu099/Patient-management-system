@@ -6,6 +6,7 @@ import { Search, Plus, UserPlus, Stethoscope, Clock, CheckCircle, XCircle, Refre
 import { cn, formatTime, getAge, getPatientDisplayName, MEDICAL_CHECKS } from '@/lib/utils'
 import { QUEUE_STATUS_LABELS, QUEUE_STATUS_COLORS } from '@/lib/queue'
 import { showToast } from '@/components/ui/Toast'
+import { NewPatientForm } from '@/components/patients/NewPatientForm'
 
 interface Props {
   initialQueue: any[]
@@ -630,20 +631,21 @@ function LinkPatientControl({ item, onUpdate }: { item: any; onUpdate: (id: stri
 }
 
 function PaperFormModal({ item, onClose, onSaved }: { item: any; onClose: () => void; onSaved: () => void }) {
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
+  const defaultValues = {
     firstName: item.intakeSubmission?.firstName ?? splitDisplayName(item.displayName).firstName,
     lastName: item.intakeSubmission?.lastName ?? splitDisplayName(item.displayName).lastName,
     dateOfBirth: item.intakeSubmission?.dateOfBirth ?? '',
     gender: item.intakeSubmission?.gender ?? '',
+    nicNumber: item.intakeSubmission?.nicNumber ?? '',
     phone: item.intakeSubmission?.phone ?? item.contactPhone ?? '',
     email: '',
     addressLine1: '',
     city: '',
+    preferredLanguage: 'en',
+    communicationPref: 'email',
     emergencyName: item.intakeSubmission?.emergencyName ?? '',
     emergencyPhone: item.intakeSubmission?.emergencyPhone ?? '',
     emergencyRelation: '',
-    reason: item.reason ?? item.intakeSubmission?.reason ?? '',
     medicalFlags: { ...emptyMedicalFlags },
     allergyDetails: item.intakeSubmission?.allergies ?? '',
     currentMedications: '',
@@ -657,38 +659,7 @@ function PaperFormModal({ item, onClose, onSaved }: { item: any; onClose: () => 
     socialHistory: '',
     extraOralExamination: '',
     intraOralExamination: '',
-    notes: '',
-  })
-
-  function setField(name: keyof typeof form, value: string) {
-    setForm(prev => ({ ...prev, [name]: value }))
-  }
-
-  function setMedicalFlag(name: string, value: boolean) {
-    setForm(prev => ({
-      ...prev,
-      medicalFlags: { ...prev.medicalFlags, [name]: value },
-    }))
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/queue/${item.id}/patient`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Could not create patient')
-      showToast('success', 'Patient created and linked', `${form.firstName} ${form.lastName} is now attached to token ${item.queueNumber}.`)
-      onSaved()
-    } catch (e: any) {
-      showToast('error', e.message)
-    } finally {
-      setSaving(false)
-    }
+    notes: item.reason ?? item.intakeSubmission?.reason ?? '',
   }
 
   return (
@@ -704,162 +675,19 @@ function PaperFormModal({ item, onClose, onSaved }: { item: any; onClose: () => 
           </button>
         </div>
 
-        <form onSubmit={submit} className="space-y-5 p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="First name *">
-              <input value={form.firstName} onChange={e => setField('firstName', e.target.value)} className="form-input" autoFocus required />
-            </Field>
-            <Field label="Last name *">
-              <input value={form.lastName} onChange={e => setField('lastName', e.target.value)} className="form-input" required />
-            </Field>
-            <Field label="Date of birth *">
-              <input value={form.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)} type="date" className="form-input" required />
-            </Field>
-            <Field label="Gender *">
-              <select value={form.gender} onChange={e => setField('gender', e.target.value)} className="form-input" required>
-                <option value="">Select...</option>
-                <option value="FEMALE">Female</option>
-                <option value="MALE">Male</option>
-                <option value="OTHER">Other</option>
-                <option value="PREFER_NOT_TO_SAY">Prefer not to say</option>
-              </select>
-            </Field>
-            <Field label="Phone *">
-              <input value={form.phone} onChange={e => setField('phone', e.target.value)} className="form-input" required />
-            </Field>
-            <Field label="Email">
-              <input value={form.email} onChange={e => setField('email', e.target.value)} type="email" className="form-input" />
-            </Field>
-            <Field label="Address">
-              <input value={form.addressLine1} onChange={e => setField('addressLine1', e.target.value)} className="form-input" />
-            </Field>
-            <Field label="City">
-              <input value={form.city} onChange={e => setField('city', e.target.value)} className="form-input" />
-            </Field>
-            <Field label="Emergency contact">
-              <input value={form.emergencyName} onChange={e => setField('emergencyName', e.target.value)} className="form-input" />
-            </Field>
-            <Field label="Emergency phone">
-              <input value={form.emergencyPhone} onChange={e => setField('emergencyPhone', e.target.value)} className="form-input" />
-            </Field>
-          </div>
-
-          <Field label="Reason for visit">
-            <input value={form.reason} onChange={e => setField('reason', e.target.value)} className="form-input" placeholder="Toothache, follow-up..." />
-          </Field>
-
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-            <p className="text-base font-semibold text-red-900">Medical and allergy screening</p>
-            <p className="text-sm text-red-700">Tick exactly what the patient selected on the paper form.</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {MEDICAL_CHECKS.map(check => (
-              <PaperYesNo
-                key={check.id}
-                label={check.label}
-                value={!!form.medicalFlags[check.id]}
-                onChange={value => setMedicalFlag(check.id, value)}
-              />
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Allergy details">
-              <textarea value={form.allergyDetails} onChange={e => setField('allergyDetails', e.target.value)} className="form-input !h-24 resize-none" placeholder="Drug, food, latex, reaction and severity" />
-            </Field>
-            <Field label="Current medications">
-              <textarea value={form.currentMedications} onChange={e => setField('currentMedications', e.target.value)} className="form-input !h-24 resize-none" placeholder="Regular medicines, anticoagulants, steroids..." />
-            </Field>
-            <Field label="Drug history">
-              <textarea value={form.drugHistory} onChange={e => setField('drugHistory', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Dietary history">
-              <textarea value={form.dietaryHistory} onChange={e => setField('dietaryHistory', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Brushing history">
-              <textarea value={form.brushingHistory} onChange={e => setField('brushingHistory', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Medical history notes">
-              <textarea value={form.medicalHistoryNote} onChange={e => setField('medicalHistoryNote', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Oral hygiene history">
-              <textarea value={form.oralHygieneHistory} onChange={e => setField('oralHygieneHistory', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Habit history">
-              <textarea value={form.habitHistory} onChange={e => setField('habitHistory', e.target.value)} className="form-input !h-20 resize-none" placeholder="Smoking, betel, alcohol, bruxism..." />
-            </Field>
-            <Field label="Family history">
-              <textarea value={form.familyHistory} onChange={e => setField('familyHistory', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Social history">
-              <textarea value={form.socialHistory} onChange={e => setField('socialHistory', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Extra oral examination">
-              <textarea value={form.extraOralExamination} onChange={e => setField('extraOralExamination', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-            <Field label="Intra oral examination">
-              <textarea value={form.intraOralExamination} onChange={e => setField('intraOralExamination', e.target.value)} className="form-input !h-20 resize-none" />
-            </Field>
-          </div>
-
-          <Field label="Reception notes">
-            <textarea value={form.notes} onChange={e => setField('notes', e.target.value)} className="form-input !h-20 resize-none" />
-          </Field>
-
-          <div className="flex justify-between border-t border-gray-100 pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary min-w-[180px] justify-center">
-              {saving ? 'Creating...' : 'Create patient'}
-            </button>
-          </div>
-        </form>
+        <div className="p-6">
+          <NewPatientForm
+            defaultValues={defaultValues as any}
+            submitUrl={`/api/queue/${item.id}/patient`}
+            submitLabel="Create patient"
+            savingLabel="Creating..."
+            successTitle="Patient created and linked"
+            successMessage={(data) => `${data.firstName} ${data.lastName} is now attached to token ${item.queueNumber}.`}
+            onCancel={onClose}
+            onSaved={() => onSaved()}
+          />
+        </div>
       </div>
-    </div>
-  )
-}
-
-function PaperYesNo({
-  label, value, onChange,
-}: {
-  label: string
-  value: boolean
-  onChange: (value: boolean) => void
-}) {
-  return (
-    <div>
-      <p className="form-label">{label}</p>
-      <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
-        <button
-          type="button"
-          onClick={() => onChange(false)}
-          className={cn(
-            'min-w-[48px] rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-            !value ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          )}
-        >
-          No
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(true)}
-          className={cn(
-            'min-w-[48px] rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-            value ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          )}
-        >
-          Yes
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="form-label">{label}</label>
-      {children}
     </div>
   )
 }

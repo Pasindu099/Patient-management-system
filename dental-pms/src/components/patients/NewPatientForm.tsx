@@ -53,7 +53,27 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-export function NewPatientForm() {
+interface NewPatientFormProps {
+  defaultValues?: Partial<FormData>
+  submitUrl?: string
+  submitLabel?: string
+  savingLabel?: string
+  successTitle?: string
+  successMessage?: (data: FormData, response: any) => string
+  onSaved?: (response: any, data: FormData) => void
+  onCancel?: () => void
+}
+
+export function NewPatientForm({
+  defaultValues,
+  submitUrl = '/api/patients',
+  submitLabel = 'Register patient',
+  savingLabel = 'Saving...',
+  successTitle = 'Patient registered',
+  successMessage = data => `${data.firstName} ${data.lastName} has been added.`,
+  onSaved,
+  onCancel,
+}: NewPatientFormProps = {}) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
 
@@ -70,6 +90,7 @@ export function NewPatientForm() {
       communicationPref: 'email',
       gender: undefined,
       medicalFlags: {},
+      ...defaultValues,
     },
   })
 
@@ -80,7 +101,7 @@ export function NewPatientForm() {
         ...data,
         nicNumber: data.nicNumber ? formatNIC(data.nicNumber.trim()) : '',
       }
-      const res = await fetch('/api/patients', {
+      const res = await fetch(submitUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -92,8 +113,12 @@ export function NewPatientForm() {
       }
 
       const patient = await res.json()
-      showToast('success', 'Patient registered', `${data.firstName} ${data.lastName} has been added.`)
-      router.push(`/patients/${patient.id}`)
+      showToast('success', successTitle, successMessage(data, patient))
+      if (onSaved) {
+        onSaved(patient, data)
+      } else {
+        router.push(`/patients/${patient.id}`)
+      }
     } catch (e: any) {
       showToast('error', 'Could not save patient', e.message)
       setSaving(false)
@@ -261,19 +286,19 @@ export function NewPatientForm() {
       </div>
 
       <div className="px-8 py-5 border-t border-gray-100 flex justify-between">
-        <button type="button" onClick={() => history.back()} className="btn-secondary">
+        <button type="button" onClick={onCancel ?? (() => history.back())} className="btn-secondary">
           Cancel
         </button>
         <button type="submit" disabled={saving} className="btn-primary min-w-[170px]">
           {saving ? (
             <>
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Saving...
+              {savingLabel}
             </>
           ) : (
             <>
               <Check className="w-4 h-4" />
-              Register patient
+              {submitLabel}
             </>
           )}
         </button>

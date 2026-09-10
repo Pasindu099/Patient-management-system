@@ -32,7 +32,7 @@ const PERMISSIONS: Record<Permission, string[]> = {
   'queue.doctor':        ['DOCTOR'],
   // Doctors price the bill for the patient in front of them (billing.visit) but
   // never see a total spanning more than that one bill (money.aggregate).
-  'billing.collect':     ['DOCTOR'],
+  'billing.collect':     ['RECEPTIONIST', 'NURSE', 'HEAD_NURSE'],
   'billing.visit':       ['DOCTOR'],
   'money.aggregate':     ['ADMIN'],
   'reminders.send':      ['ADMIN', 'HEAD_NURSE'],

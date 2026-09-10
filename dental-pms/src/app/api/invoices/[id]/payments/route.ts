@@ -21,7 +21,9 @@ export async function POST(
 ) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-  if (!can(session.user.role, 'billing.collect')) {
+  const canCollect = can(session.user.role, 'billing.collect')
+  const canSeeAllMoney = can(session.user.role, 'money.aggregate')
+  if (!canCollect && !canSeeAllMoney) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
@@ -36,7 +38,7 @@ export async function POST(
   })
 
   if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
-  if (!invoice.visitInvoices.some(link => link.visit.doctorId === session.user.id)) {
+  if (!canSeeAllMoney && !canCollect && !invoice.visitInvoices.some(link => link.visit.doctorId === session.user.id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   if (['CANCELLED', 'WRITTEN_OFF'].includes(invoice.status)) {

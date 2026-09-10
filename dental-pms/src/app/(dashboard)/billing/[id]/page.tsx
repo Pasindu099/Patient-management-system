@@ -8,6 +8,7 @@ import {
 } from '@/lib/utils'
 import { PrintButton } from '@/components/billing/PrintButton'
 import { RecordPaymentForm } from '@/components/billing/RecordPaymentForm'
+import { PayInstallmentButton } from '@/components/visits/PayInstallmentButton'
 import type { Metadata } from 'next'
 import { can } from '@/lib/permissions'
 
@@ -44,15 +45,17 @@ export default async function InvoiceDetailPage({ params }: Props) {
       branch:  true,
       items:   { orderBy: { id: 'asc' } },
       payments: { orderBy: { paidAt: 'desc' } },
+      installmentPlan: { include: { installments: { orderBy: { number: 'asc' } } } },
       visitInvoices: { include: { visit: { select: { doctorId: true } } } },
     },
   })
 
   if (!inv) notFound()
-  if (!canSeeAllMoney && !inv.visitInvoices.some(link => link.visit.doctorId === session.user.id)) redirect('/billing')
+  if (!canSeeAllMoney && !canCollect && !inv.visitInvoices.some(link => link.visit.doctorId === session.user.id)) redirect('/billing')
 
   const cur = inv.currency as 'LKR' | 'USD'
-  const canRecordPayment = canCollect && inv.balance > 0 && !['CANCELLED','WRITTEN_OFF','PAID'].includes(inv.status)
+  const canRecordPayment = (canCollect || canSeeAllMoney) && inv.balance > 0 && !['CANCELLED','WRITTEN_OFF','PAID'].includes(inv.status)
+  const nextUnpaidInstallment = inv.installmentPlan?.installments.find(i => !i.paidAt)
   const USD_RATE = inv.exchangeRate ?? 320
 
   return (
@@ -228,8 +231,61 @@ export default async function InvoiceDetailPage({ params }: Props) {
         </div>
       )}
 
+      {/* Installment plan */}
+      {inv.installmentPlan && (
+        <div className="section-card">
+          <div className="section-card-header">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Installment plan</h2>
+              <p className="text-sm text-gray-500">
+                {inv.installmentPlan.installments.filter(i => i.paidAt).length} of {inv.installmentPlan.numberOfInstallments} paid
+              </p>
+            </div>
+            {canRecordPayment && nextUnpaidInstallment && (
+              <PayInstallmentButton
+                installmentId={nextUnpaidInstallment.id}
+                invoiceId={inv.id}
+                amount={nextUnpaidInstallment.amount}
+                currency={cur}
+              />
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Status</th>
+                  <th>Paid date</th>
+                  <th>Method</th>
+                  <th className="text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inv.installmentPlan.installments.map(inst => (
+                  <tr key={inst.id}>
+                    <td className="font-semibold">{inst.number}</td>
+                    <td>
+                      <span className={cn(
+                        'text-xs font-bold px-2 py-1 rounded-full',
+                        inst.paidAt ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                      )}>
+                        {inst.paidAt ? 'PAID' : 'DUE'}
+                      </span>
+                    </td>
+                    <td>{inst.paidAt ? formatDate(inst.paidAt) : '-'}</td>
+                    <td className="capitalize">{inst.paymentMethod?.replace('_', ' ') ?? '-'}</td>
+                    <td className="text-right font-semibold">{formatCurrency(inst.amount, cur)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Record payment */}
-      {canRecordPayment && (
+      {canRecordPayment && !inv.installmentPlan && (
         <RecordPaymentForm
           invoiceId={inv.id}
           balance={inv.balance}
