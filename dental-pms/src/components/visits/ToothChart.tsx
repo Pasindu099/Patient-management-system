@@ -15,6 +15,8 @@ export const TOOTH_CONDITIONS = [
   { id: 'implant', label: 'Implant', color: '#dcfce7', border: '#16a34a', text: 'text-green-700', chip: 'bg-green-50', emoji: '⚙' },
   { id: 'fracture', label: 'Fracture', color: '#ffedd5', border: '#ea580c', text: 'text-orange-700', chip: 'bg-orange-50', emoji: '⚠' },
   { id: 'watch', label: 'Watch', color: '#fef9c3', border: '#ca8a04', text: 'text-yellow-700', chip: 'bg-yellow-50', emoji: '👁' },
+  { id: 'mobile', label: 'Mobile', color: '#e0f2fe', border: '#0284c7', text: 'text-sky-700', chip: 'bg-sky-50', emoji: 'M' },
+  { id: 'malalignment', label: 'Mal alignment', color: '#fae8ff', border: '#c026d3', text: 'text-fuchsia-700', chip: 'bg-fuchsia-50', emoji: 'A' },
   { id: 'bridge', label: 'Bridge', color: '#dbeafe', border: '#2563eb', text: 'text-blue-800', chip: 'bg-blue-50', emoji: '⌒' },
   { id: 'denture', label: 'Denture', color: '#f0fdf4', border: '#16a34a', text: 'text-green-800', chip: 'bg-green-50', emoji: '☰' },
 ] as const
