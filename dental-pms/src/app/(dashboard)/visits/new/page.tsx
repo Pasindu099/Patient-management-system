@@ -10,6 +10,7 @@ import { formatCents } from '@/lib/money'
 import type { Metadata } from 'next'
 import { can, DOCTOR_ROLES, isDoctorRole } from '@/lib/permissions'
 import { getOrCreateSession, periodForTime } from '@/lib/sessions'
+import { canDoctorTakePatient, getEffectiveDoctorStatus } from '@/lib/doctor-status'
 
 export const metadata: Metadata = { title: 'New Visit' }
 
@@ -129,14 +130,6 @@ async function createTemporaryPatientForQueue(queueItem: any, userId: string) {
   return result
 }
 
-async function latestDoctorStatus(doctorId: string) {
-  return prisma.doctorStatusEvent.findFirst({
-    where: { doctorId },
-    orderBy: { createdAt: 'desc' },
-    select: { status: true },
-  })
-}
-
 async function ensureDirectTreatmentQueue(patientId: string, doctorId: string) {
   const existing = await prisma.receptionQueueItem.findFirst({
     where: {
@@ -227,8 +220,8 @@ export default async function NewVisitPage({ searchParams }: Props) {
         redirect('/dashboard')
       }
     } else {
-      const latestStatus = await latestDoctorStatus(session.user.id)
-      if (latestStatus?.status !== 'READY') redirect('/dashboard')
+      const latestStatus = await getEffectiveDoctorStatus(prisma, session.user.id)
+      if (!canDoctorTakePatient(latestStatus?.status)) redirect('/dashboard')
       if (params.patientId) {
         const queueId = await ensureDirectTreatmentQueue(params.patientId, session.user.id)
         redirect(`/visits/new?patientId=${params.patientId}&queueId=${queueId}`)

@@ -3,18 +3,13 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isDoctorRole } from '@/lib/permissions'
+import { getEffectiveDoctorStatus } from '@/lib/doctor-status'
 
 const statusSchema = z.object({
   status: z.enum(['READY', 'SHORT_BREAK', 'UNAVAILABLE', 'SESSION_ENDED']),
   branchId: z.string().optional().nullable(),
   note: z.string().optional().nullable(),
 })
-
-const todayStart = () => {
-  const date = new Date()
-  date.setHours(0, 0, 0, 0)
-  return date
-}
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -27,25 +22,31 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       name: true,
-      statusEvents: {
-        where: {
-          createdAt: { gte: todayStart() },
-          ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
     },
     orderBy: { name: 'asc' },
   })
 
-  return NextResponse.json(doctors.map(doctor => ({
-    id: doctor.id,
-    name: doctor.name,
-    status: doctor.statusEvents[0]?.status ?? 'NOT_STARTED',
-    statusChangedAt: doctor.statusEvents[0]?.createdAt ?? null,
-    note: doctor.statusEvents[0]?.note ?? null,
-  })))
+  const rows = await Promise.all(doctors.map(async doctor => {
+    const status = await getEffectiveDoctorStatus(prisma, doctor.id)
+    if (branchId && status?.branchId && status.branchId !== branchId) {
+      return {
+        id: doctor.id,
+        name: doctor.name,
+        status: 'NOT_STARTED',
+        statusChangedAt: null,
+        note: null,
+      }
+    }
+    return {
+      id: doctor.id,
+      name: doctor.name,
+      status: status?.status ?? 'NOT_STARTED',
+      statusChangedAt: status?.createdAt ?? null,
+      note: status?.note ?? null,
+    }
+  }))
+
+  return NextResponse.json(rows)
 }
 
 export async function POST(req: NextRequest) {

@@ -3,14 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isDoctorRole } from '@/lib/permissions'
 import { QUEUE_STATUSES } from '@/lib/queue'
-
-async function latestDoctorStatus(doctorId: string) {
-  return prisma.doctorStatusEvent.findFirst({
-    where: { doctorId },
-    orderBy: { createdAt: 'desc' },
-    select: { status: true },
-  })
-}
+import { canDoctorTakePatient, getEffectiveDoctorStatus } from '@/lib/doctor-status'
 
 export async function PATCH(
   req: NextRequest,
@@ -60,8 +53,8 @@ export async function PATCH(
     if (status === 'IN_CHAIR') {
       const doctorId = existing.assignedDoctorId ?? (isDoctorRole(session.user.role) ? session.user.id : null)
       if (isDoctorRole(session.user.role)) {
-        const latestStatus = await latestDoctorStatus(session.user.id)
-        if (latestStatus?.status !== 'READY') {
+        const latestStatus = await getEffectiveDoctorStatus(prisma, session.user.id)
+        if (!canDoctorTakePatient(latestStatus?.status)) {
           return NextResponse.json(
             { error: 'Start your session first before receiving a patient to chair.' },
             { status: 409 }

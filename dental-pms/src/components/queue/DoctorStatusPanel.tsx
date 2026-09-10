@@ -125,6 +125,11 @@ export function DoctorStatusPanel({ currentUser }: { currentUser: any }) {
             Reception can send the next patient to you now.
           </div>
         )}
+        {currentStatus === 'WITH_PATIENT' && (
+          <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
+            Your session is active and will stay on for the next patient.
+          </div>
+        )}
       </div>
     </div>
   )

@@ -8,6 +8,8 @@ import { showToast } from '@/components/ui/Toast'
 
 interface Doctor { id: string; name: string }
 
+const ACTIVE_SESSION_STATUSES = ['READY', 'WITH_PATIENT']
+
 function queueDisplayName(item: any) {
   if (item.patient) return getPatientDisplayName(item.patient)
   if (item.displayName) return item.displayName
@@ -56,7 +58,7 @@ export function DoctorQueuePanel({
       router.push(`/visits/new?${patientParam}queueId=${item.id}`)
       return
     }
-    if (doctorStatus !== 'READY') {
+    if (!ACTIVE_SESSION_STATUSES.includes(doctorStatus)) {
       showToast('error', 'Start your session first before receiving a patient.')
       return
     }
@@ -175,7 +177,7 @@ export function DoctorQueuePanel({
             const assignedToMe = item.assignedDoctorId === currentUser.id
             const isReferring = referringId === item.id
             const inChair = item.status === 'IN_CHAIR'
-            const canReceive = inChair || doctorStatus === 'READY'
+            const canReceive = inChair || ACTIVE_SESSION_STATUSES.includes(doctorStatus)
 
             return (
               <div key={item.id} className={cn('px-6 py-4', assignedToMe ? 'bg-blue-50/50' : 'bg-white')}>

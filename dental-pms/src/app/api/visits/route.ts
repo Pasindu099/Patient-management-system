@@ -7,19 +7,12 @@ import { toCents, fromCents } from '@/lib/money'
 import { recordLedgerTx } from '@/lib/ledger'
 import { determinePatientType, deductForVisit, alertLowStock } from '@/lib/inventory'
 import { periodForTime, getOrCreateSession } from '@/lib/sessions'
+import { canDoctorTakePatient, getEffectiveDoctorStatus } from '@/lib/doctor-status'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 
 function genNumber(prefix: string) {
   return `${prefix}-${String(Math.floor(Math.random() * 900000) + 100000)}`
-}
-
-async function latestDoctorStatus(doctorId: string) {
-  return prisma.doctorStatusEvent.findFirst({
-    where: { doctorId },
-    orderBy: { createdAt: 'desc' },
-    select: { status: true },
-  })
 }
 
 export async function POST(req: NextRequest) {
@@ -63,8 +56,8 @@ export async function POST(req: NextRequest) {
         )
       }
     } else {
-      const latestStatus = await latestDoctorStatus(session.user.id)
-      if (latestStatus?.status !== 'READY') {
+      const latestStatus = await getEffectiveDoctorStatus(prisma, session.user.id)
+      if (!canDoctorTakePatient(latestStatus?.status)) {
         return NextResponse.json(
           { error: 'Start your session before recording treatment.' },
           { status: 409 }

@@ -20,6 +20,7 @@ const RESOURCE_FILTERS = [
   { value: 'treatment_fee_price', label: 'Price changes' },
   { value: 'visit',               label: 'Visits' },
   { value: 'reception_queue',     label: 'Queue' },
+  { value: 'doctor_status_auto_end', label: 'Auto-ended sessions' },
   { value: 'appointment',         label: 'Appointments' },
   { value: 'invoice',             label: 'Invoices' },
 ]
