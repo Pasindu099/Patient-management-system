@@ -12,15 +12,17 @@ interface Props {
   appointmentId: string
   currentStatus: string
   startTime?: string
+  isDateOnly?: boolean
 }
 
-export function AppointmentActions({ appointmentId, currentStatus, startTime }: Props) {
+export function AppointmentActions({ appointmentId, currentStatus, startTime, isDateOnly = false }: Props) {
   const router = useRouter()
   const [loading, setLoading]   = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
   const [showReschedule, setShowReschedule] = useState(false)
   const [newDate, setNewDate] = useState(startTime ? startTime.slice(0, 10) : '')
-  const [newTime, setNewTime] = useState(startTime ? new Date(startTime).toTimeString().slice(0, 5) : '')
+  const [newTime, setNewTime] = useState(!isDateOnly && startTime ? new Date(startTime).toTimeString().slice(0, 5) : '')
+  const [newDateOnly, setNewDateOnly] = useState(isDateOnly)
 
   async function sendReminder(channel: 'sms' | 'whatsapp') {
     setLoading(true)
@@ -59,17 +61,19 @@ export function AppointmentActions({ appointmentId, currentStatus, startTime }: 
   }
 
   async function reschedule() {
-    if (!newDate || !newTime) return
+    if (!newDate || (!newDateOnly && !newTime)) return
     setLoading(true)
     try {
       const res = await fetch(`/api/appointments/${appointmentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startTime: new Date(`${newDate}T${newTime}`).toISOString() }),
+        body: JSON.stringify(newDateOnly
+          ? { date: newDate, isDateOnly: true }
+          : { startTime: new Date(`${newDate}T${newTime}`).toISOString(), isDateOnly: false }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Could not reschedule')
-      showToast('success', 'Appointment moved to the new time')
+      showToast('success', newDateOnly ? 'Appointment moved to the new date' : 'Appointment moved to the new time')
       setShowReschedule(false)
       router.refresh()
     } catch (e: any) {
@@ -165,12 +169,22 @@ export function AppointmentActions({ appointmentId, currentStatus, startTime }: 
               type="time"
               value={newTime}
               onChange={e => setNewTime(e.target.value)}
+              disabled={newDateOnly}
               className="form-input !py-2 !text-sm"
             />
           </div>
+          <label className="flex min-h-[42px] items-center gap-2 rounded-lg border border-purple-200 bg-white px-3 text-sm font-semibold text-purple-800">
+            <input
+              type="checkbox"
+              checked={newDateOnly}
+              onChange={e => setNewDateOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-purple-300 text-purple-600"
+            />
+            Date only
+          </label>
           <button
             onClick={reschedule}
-            disabled={loading || !newDate || !newTime}
+            disabled={loading || !newDate || (!newDateOnly && !newTime)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
                        bg-purple-600 text-white hover:bg-purple-700 transition-colors min-h-[42px] disabled:opacity-50"
           >

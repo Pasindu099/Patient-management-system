@@ -374,6 +374,7 @@ export function VisitForm({
   const [scheduleNextAppointment, setScheduleNextAppointment] = useState(false)
   const [nextAppointmentDate, setNextAppointmentDate] = useState(defaultNextAppointmentDate)
   const [nextAppointmentTime, setNextAppointmentTime] = useState('09:00')
+  const [nextAppointmentDateOnly, setNextAppointmentDateOnly] = useState(false)
   const [nextAppointmentDuration, setNextAppointmentDuration] = useState(30)
   const [nextAppointmentType, setNextAppointmentType] = useState('FOLLOW_UP')
   const [nextAppointmentReason, setNextAppointmentReason] = useState('')
@@ -440,6 +441,11 @@ export function VisitForm({
   const [cashAmt,     setCashAmt]     = useState(0)
   const [cardAmt,     setCardAmt]     = useState(0)
   const [transferAmt, setTransferAmt] = useState(0)
+  const [previousPaidAmt, setPreviousPaidAmt] = useState(0)
+  const [previousInstallments, setPreviousInstallments] = useState(0)
+  const [previousPaidAt, setPreviousPaidAt] = useState('')
+  const [previousPaymentMethod, setPreviousPaymentMethod] = useState('cash')
+  const [previousPaymentNote, setPreviousPaymentNote] = useState('')
   // Waive: doctor enters what they charge (subtotal already reflects this via chargeAmt)
   // so waive at bill level is additional overall discount
   const [billDiscount, setBillDiscount] = useState(0)
@@ -471,11 +477,13 @@ export function VisitForm({
 
   const totalPayable   = Math.max(0, subtotal - billDiscount)
   const paid           = cashAmt + cardAmt + transferAmt
+  const totalRecorded  = previousPaidAmt + paid
   // Nothing left to charge (everything waived) is the only way to finish
   // without recording money in; otherwise the split has to add up to the bill.
   const fullyWaived    = totalPayable <= 0
-  const outstanding    = Number((totalPayable - paid).toFixed(2))
-  const paymentSettled = fullyWaived || Math.abs(outstanding) < 0.01
+  const outstanding    = Number((totalPayable - totalRecorded).toFixed(2))
+  const historicalPartial = previousPaidAmt > 0 && outstanding >= 0
+  const paymentSettled = fullyWaived || Math.abs(outstanding) < 0.01 || historicalPartial
   const installTotal   = installRows.reduce((s, r) => s + r.amount, 0)
   const installmentDelta = Number((installTotal - totalPayable).toFixed(2))
   const installmentBalanced = Math.abs(installmentDelta) <= 0.01
@@ -519,6 +527,10 @@ export function VisitForm({
           ? `${formatLKR(outstanding)} is still unaccounted for. Enter what you received as cash, card or transfer — or waive the balance.`
           : `The amounts entered exceed the bill by ${formatLKR(Math.abs(outstanding))}.`,
       )
+      return
+    }
+    if (finalise && previousPaidAmt > 0 && !previousPaidAt) {
+      showToast('error', 'Add the previous payment date', 'Previous collections must use their original date so admin finance stays correct.')
       return
     }
     setSaving(true)
@@ -586,9 +598,11 @@ export function VisitForm({
       const appointmentTreatmentText = selectedAppointmentItems.length > 0
         ? selectedAppointmentItems.map(item => `${item.description}${item.tooth ? ` (T${item.tooth})` : ''}`).join(', ')
         : ''
-      const nextAppointment = scheduleNextAppointment && nextAppointmentDate && nextAppointmentTime
+      const nextAppointment = scheduleNextAppointment && nextAppointmentDate && (nextAppointmentDateOnly || nextAppointmentTime)
         ? {
-            startTime: `${nextAppointmentDate}T${nextAppointmentTime}:00`,
+            startTime: nextAppointmentDateOnly ? null : `${nextAppointmentDate}T${nextAppointmentTime}:00`,
+            date: nextAppointmentDate,
+            isDateOnly: nextAppointmentDateOnly,
             durationMins: nextAppointmentDuration,
             type: nextAppointmentType,
             reason: nextAppointmentReason || appointmentTreatmentText || nextNote || futureTreatmentItems[0]?.description || 'Follow-up treatment',
@@ -639,6 +653,13 @@ export function VisitForm({
             cash:       cashAmt,
             card:       cardAmt,
             transfer:   transferAmt,
+            previousPayment: previousPaidAmt > 0 ? {
+              amount: previousPaidAmt,
+              paidAt: previousPaidAt,
+              method: previousPaymentMethod,
+              installmentCount: previousInstallments,
+              note: previousPaymentNote,
+            } : null,
             notes:      billNotes,
           } : null,
         }),
@@ -1139,15 +1160,25 @@ export function VisitForm({
                     />
                   </div>
                   <div>
-                    <label className="form-label !text-xs">Time</label>
+                    <label className="form-label !text-xs">Time{!nextAppointmentDateOnly ? '' : ' optional'}</label>
                     <select
                       value={nextAppointmentTime}
                       onChange={e => setNextAppointmentTime(e.target.value)}
+                      disabled={nextAppointmentDateOnly}
                       className="form-input !py-2"
                     >
                       {NEXT_APPOINTMENT_TIMES.map(time => <option key={time} value={time}>{time}</option>)}
                     </select>
                   </div>
+                  <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm font-semibold text-blue-800">
+                    <input
+                      type="checkbox"
+                      checked={nextAppointmentDateOnly}
+                      onChange={e => setNextAppointmentDateOnly(e.target.checked)}
+                      className="h-4 w-4 rounded border-blue-300 text-blue-600"
+                    />
+                    Date only - no fixed time
+                  </label>
                   <div>
                     <label className="form-label !text-xs">Appointment type</label>
                     <select
@@ -1490,6 +1521,75 @@ export function VisitForm({
               </div>
             )}
 
+            {!fullyWaived && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-bold text-indigo-800">Previous amount already collected</p>
+                  <p className="text-xs font-semibold text-indigo-700">
+                    Use this for treatments that started before this visit. It is saved on the previous payment date, not as today's income.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="form-label !text-xs">Amount (Rs.)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={previousPaidAmt || ''}
+                      onChange={e => setPreviousPaidAmt(parseFloat(e.target.value) || 0)}
+                      className="form-input text-right"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label !text-xs">Installments paid</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={previousInstallments || ''}
+                      onChange={e => setPreviousInstallments(parseInt(e.target.value) || 0)}
+                      className="form-input text-right"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label !text-xs">Payment method</label>
+                    <select
+                      value={previousPaymentMethod}
+                      onChange={e => setPreviousPaymentMethod(e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="bank_transfer">Bank transfer</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label !text-xs">Previous payment date{previousPaidAmt > 0 ? ' *' : ''}</label>
+                    <input
+                      type="date"
+                      value={previousPaidAt}
+                      onChange={e => setPreviousPaidAt(e.target.value)}
+                      className={cn('form-input', previousPaidAmt > 0 && !previousPaidAt && 'border-amber-400')}
+                    />
+                  </div>
+                </div>
+                <input
+                  value={previousPaymentNote}
+                  onChange={e => setPreviousPaymentNote(e.target.value)}
+                  className="form-input"
+                  placeholder="Optional note, e.g. four ortho installments collected before PMS entry"
+                />
+                {previousPaidAmt > 0 && (
+                  <p className="text-sm font-semibold text-indigo-800">
+                    Recorded so far: {formatLKR(previousPaidAmt)} previous + {formatLKR(paid)} today = {formatLKR(totalRecorded)}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Payment received — required unless the whole bill is waived */}
             {!fullyWaived && (
               <div>
@@ -1498,9 +1598,9 @@ export function VisitForm({
                     Payment received <span className="text-red-500">*</span>
                   </label>
                   <button type="button"
-                    onClick={() => { setCashAmt(totalPayable); setCardAmt(0); setTransferAmt(0) }}
+                    onClick={() => { setCashAmt(Math.max(0, totalPayable - previousPaidAmt)); setCardAmt(0); setTransferAmt(0) }}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                    All cash ({formatLKR(totalPayable)})
+                    All cash today ({formatLKR(Math.max(0, totalPayable - previousPaidAmt))})
                   </button>
                 </div>
                 <div className="grid grid-cols-3 gap-3 mt-2">
@@ -1521,7 +1621,9 @@ export function VisitForm({
                 {paymentSettled ? (
                   <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-green-700">
                     <Check className="w-3.5 h-3.5" />
-                    {formatLKR(paid)} received — matches the bill.
+                    {outstanding > 0
+                      ? `${formatLKR(paid)} received today - ${formatLKR(outstanding)} remains on this treatment.`
+                      : `${formatLKR(paid)} received today - recorded total matches the bill.`}
                   </p>
                 ) : (
                   <p className={cn('mt-2 flex items-center gap-1 text-sm font-semibold',
@@ -1551,10 +1653,21 @@ export function VisitForm({
                   </p>
                 )}
                 <p className="text-sm text-gray-500">
-                  Total to pay today
+                  Treatment total
                 </p>
                 <p className="text-3xl font-bold text-gray-900">
                   {formatLKR(totalPayable)}
+                </p>
+                {previousPaidAmt > 0 && (
+                  <p className="text-sm font-semibold text-indigo-700">
+                    Previous collected: {formatLKR(previousPaidAmt)}
+                  </p>
+                )}
+                <p className="text-sm font-semibold text-gray-700">
+                  Today collected: {formatLKR(paid)}
+                </p>
+                <p className={cn('text-sm font-bold', outstanding > 0 ? 'text-red-600' : outstanding < 0 ? 'text-amber-600' : 'text-green-700')}>
+                  Remaining: {formatLKR(Math.max(0, outstanding))}
                 </p>
               </div>
             </div>

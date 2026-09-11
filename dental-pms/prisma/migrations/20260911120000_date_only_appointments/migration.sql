@@ -1,0 +1,1 @@
+ALTER TABLE "appointments" ADD COLUMN "isDateOnly" BOOLEAN NOT NULL DEFAULT false;

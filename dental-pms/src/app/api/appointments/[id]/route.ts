@@ -8,7 +8,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
 
   const body = await req.json()
-  const { status, cancellationReason, arrivedAt, completedAt, startTime, durationMins } = body
+  const { status, cancellationReason, arrivedAt, completedAt, startTime, durationMins, isDateOnly, date } = body
 
   const validStatuses = ['SCHEDULED','CONFIRMED','IN_PROGRESS','COMPLETED','CANCELLED','NO_SHOW','RESCHEDULED']
   if (status && !validStatuses.includes(status)) {
@@ -22,8 +22,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (completedAt)        data.completedAt        = new Date(completedAt)
   if (status === 'CONFIRMED') data.confirmedAt    = new Date()
 
-  // Reschedule: move the appointment to a new time slot
-  if (startTime) {
+  // Reschedule: move the appointment to a new date-only or timed slot.
+  if (isDateOnly && date) {
+    const start = new Date(`${date}T12:00:00`)
+    if (isNaN(start.getTime())) {
+      return NextResponse.json({ error: 'Invalid appointment date' }, { status: 400 })
+    }
+    data.startTime    = start
+    data.endTime      = start
+    data.durationMins = Number(durationMins) || 30
+    data.isDateOnly   = true
+    data.sessionId    = null
+    data.slotKind     = 'DATE_ONLY'
+  } else if (startTime) {
     const existing = await prisma.appointment.findUnique({
       where: { id },
       select: { durationMins: true, providerId: true },
@@ -51,6 +62,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.startTime    = start
     data.endTime      = new Date(start.getTime() + mins * 60_000)
     data.durationMins = mins
+    data.isDateOnly   = false
+    data.slotKind     = 'APPOINTMENT'
   }
 
   const appointment = await prisma.appointment.update({

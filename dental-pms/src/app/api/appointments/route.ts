@@ -11,7 +11,9 @@ const createSchema = z.object({
   providerId:    z.string().min(1),
   branchId:      z.string().min(1),
   type:          z.string().min(1),
-  startTime:     z.string(),
+  startTime:     z.string().optional().nullable(),
+  date:          z.string().optional().nullable(),
+  isDateOnly:    z.boolean().optional().default(false),
   durationMins:  z.number().int().min(10).max(360),
   chair:         z.string().optional(),
   reason:        z.string().optional(),
@@ -31,6 +33,11 @@ function slotTimeKey(date: Date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
+function dateOnlyStart(date: string) {
+  const parsed = new Date(`${date}T12:00:00`)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
@@ -38,7 +45,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const branchId   = searchParams.get('branchId')
   const providerId = searchParams.get('providerId')
-  const date       = searchParams.get('date')   // YYYY-MM-DD
+  const date       = searchParams.get('date')
   const weekStart  = searchParams.get('weekStart')
 
   let startOfRange: Date
@@ -55,7 +62,6 @@ export async function GET(req: NextRequest) {
     endOfRange = new Date(date)
     endOfRange.setHours(23, 59, 59, 999)
   } else {
-    // Default: today
     startOfRange = new Date()
     startOfRange.setHours(0, 0, 0, 0)
     endOfRange = new Date()
@@ -66,8 +72,6 @@ export async function GET(req: NextRequest) {
     startTime: { gte: startOfRange, lte: endOfRange },
   }
   if (branchId) where.branchId = branchId
-  // A doctor can only ever query their own appointments — enforced here so
-  // passing another doctor's providerId can't be used to read their patients.
   if (isDoctorRole(session.user.role)) {
     where.providerId = session.user.id
   } else if (providerId) {
@@ -98,73 +102,81 @@ export async function POST(req: NextRequest) {
   }
 
   const d = parsed.data
-  const startTime = new Date(d.startTime)
-  const endTime   = new Date(startTime.getTime() + d.durationMins * 60 * 1000)
-
-  // v2 sessions: the appointment must fall inside a session, the doctor must
-  // be on the roster, and the session's appointment allocation must have room
-  const period = periodForTime(startTime)
-  if (!period) {
-    return NextResponse.json({
-      error: 'Outside session hours. Sessions run 9:00 AM – 2:00 PM and 4:00 PM – 9:00 PM.',
-    }, { status: 400 })
+  const startTime = d.isDateOnly
+    ? d.date ? dateOnlyStart(d.date) : null
+    : d.startTime ? new Date(d.startTime) : null
+  if (!startTime || isNaN(startTime.getTime())) {
+    return NextResponse.json({ error: d.isDateOnly ? 'Please choose an appointment date.' : 'Please choose an appointment time.' }, { status: 400 })
   }
-  if (!isDoctorRole(session.user.role)) {
-    const offeredSlot = await prisma.onlineSlot.findFirst({
-      where: {
-        doctorId: d.providerId,
-        dayOfWeek: slotDayKey(startTime),
-        startTime: slotTimeKey(startTime),
-        isActive: true,
-      },
-      select: { id: true },
-    })
-    if (!offeredSlot) {
+
+  const endTime = new Date(startTime.getTime() + d.durationMins * 60 * 1000)
+  let clinicSession: any = null
+
+  if (!d.isDateOnly) {
+    const period = periodForTime(startTime)
+    if (!period) {
       return NextResponse.json({
-        error: 'This doctor has not offered that appointment time. Choose one of the available times.',
+        error: 'Outside session hours. Sessions run 9:00 AM - 2:00 PM and 4:00 PM - 9:00 PM.',
+      }, { status: 400 })
+    }
+
+    if (!isDoctorRole(session.user.role)) {
+      const offeredSlot = await prisma.onlineSlot.findFirst({
+        where: {
+          doctorId: d.providerId,
+          dayOfWeek: slotDayKey(startTime),
+          startTime: slotTimeKey(startTime),
+          isActive: true,
+        },
+        select: { id: true },
+      })
+      if (!offeredSlot) {
+        return NextResponse.json({
+          error: 'This doctor has not offered that appointment time. Choose one of the available times.',
+        }, { status: 409 })
+      }
+    }
+
+    const hasRosterConfigured = await prisma.doctorBranchAvailability.count({
+      where: { doctorId: d.providerId, branchId: d.branchId, isActive: true },
+    })
+    const rostered = hasRosterConfigured > 0
+      ? await isDoctorRostered(prisma, d.providerId, d.branchId, startTime, period)
+      : true
+    if (!rostered) {
+      return NextResponse.json({
+        error: 'This doctor is not scheduled at this branch for that session. Choose another doctor/time or update the roster.',
       }, { status: 409 })
     }
-  }
-  const hasRosterConfigured = await prisma.doctorBranchAvailability.count({
-    where: { doctorId: d.providerId, branchId: d.branchId, isActive: true },
-  })
-  const rostered = hasRosterConfigured > 0
-    ? await isDoctorRostered(prisma, d.providerId, d.branchId, startTime, period)
-    : true
-  if (!rostered) {
-    return NextResponse.json({
-      error: 'This doctor is not scheduled at this branch for that session. Choose another doctor/time or update the roster.',
-    }, { status: 409 })
-  }
-  const clinicSession = await getOrCreateSession(prisma, d.branchId, startTime, period)
-  if (!clinicSession.isOpen) {
-    return NextResponse.json({ error: 'This session is closed for bookings.' }, { status: 409 })
-  }
-  const usage = await sessionUsage(prisma, clinicSession.id)
-  if (usage.appointment >= clinicSession.appointmentCapacity) {
-    return NextResponse.json({
-      error: `This session's appointment slots are full (${clinicSession.appointmentCapacity}). The patient can still walk in.`,
-    }, { status: 409 })
-  }
 
-  // Check for conflicts
-  const conflict = await prisma.appointment.findFirst({
-    where: {
-      providerId: d.providerId,
-      status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-      OR: [
-        { startTime: { gte: startTime, lt: endTime } },
-        { endTime:   { gt: startTime, lte: endTime } },
-        { startTime: { lte: startTime }, endTime: { gte: endTime } },
-      ],
-    },
-    select: { appointmentNumber: true, startTime: true },
-  })
+    clinicSession = await getOrCreateSession(prisma, d.branchId, startTime, period)
+    if (!clinicSession.isOpen) {
+      return NextResponse.json({ error: 'This session is closed for bookings.' }, { status: 409 })
+    }
+    const usage = await sessionUsage(prisma, clinicSession.id)
+    if (usage.appointment >= clinicSession.appointmentCapacity) {
+      return NextResponse.json({
+        error: `This session's appointment slots are full (${clinicSession.appointmentCapacity}). The patient can still walk in.`,
+      }, { status: 409 })
+    }
 
-  if (conflict) {
-    return NextResponse.json({
-      error: `This time slot conflicts with appointment ${conflict.appointmentNumber}. Please choose a different time.`,
-    }, { status: 409 })
+    const conflict = await prisma.appointment.findFirst({
+      where: {
+        providerId: d.providerId,
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        OR: [
+          { startTime: { gte: startTime, lt: endTime } },
+          { endTime:   { gt: startTime, lte: endTime } },
+          { startTime: { lte: startTime }, endTime: { gte: endTime } },
+        ],
+      },
+      select: { appointmentNumber: true },
+    })
+    if (conflict) {
+      return NextResponse.json({
+        error: `This time slot conflicts with appointment ${conflict.appointmentNumber}. Please choose a different time.`,
+      }, { status: 409 })
+    }
   }
 
   let appointmentNumber = generateApptNumber()
@@ -182,13 +194,14 @@ export async function POST(req: NextRequest) {
       status:        'SCHEDULED',
       bookingSource: d.bookingSource as any,
       startTime,
-      endTime,
+      endTime:       d.isDateOnly ? startTime : endTime,
       durationMins:  d.durationMins,
+      isDateOnly:    d.isDateOnly,
       chair:         d.chair || null,
       reason:        d.reason || null,
       notes:         d.notes  || null,
-      sessionId:     clinicSession.id,
-      slotKind:      'APPOINTMENT',
+      sessionId:     clinicSession?.id ?? null,
+      slotKind:      d.isDateOnly ? 'DATE_ONLY' : 'APPOINTMENT',
     },
     include: {
       patient:  { select: { firstName: true, lastName: true, email: true } },
@@ -197,8 +210,6 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // Confirmation email to the patient, when we hold an address for them.
-  // Never allowed to fail the booking — the appointment is already saved.
   if (appointment.patient.email) {
     const mail = appointmentConfirmationEmail({
       patientName:       `${appointment.patient.firstName} ${appointment.patient.lastName}`,
@@ -208,6 +219,7 @@ export async function POST(req: NextRequest) {
       branchAddress:     appointment.branch?.address,
       branchPhone:       appointment.branch?.phone,
       startTime,
+      isDateOnly:        appointment.isDateOnly,
       reason:            d.reason || null,
     })
     const sent = await sendEmail({ to: appointment.patient.email, ...mail })
@@ -216,7 +228,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Update patient last visit
   await prisma.patient.update({
     where: { id: d.patientId },
     data:  { lastVisitDate: startTime },

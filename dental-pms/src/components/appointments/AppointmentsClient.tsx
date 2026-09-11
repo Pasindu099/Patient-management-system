@@ -227,15 +227,18 @@ export function AppointmentsClient({
     showToast('success', 'Appointment booked successfully')
   }
 
+  const dateOnlyAppointments = appointments.filter(a => a.isDateOnly)
+  const timedAppointments = appointments.filter(a => !a.isDateOnly)
+
   // Group appointments by start time for day view
   const apptsByTime: Record<string, any[]> = {}
   CALENDAR_TIMES.forEach(t => { apptsByTime[t] = [] })
-  appointments.forEach(a => {
+  timedAppointments.forEach(a => {
     const time = formatTime(a.startTime)
     if (apptsByTime[time]) apptsByTime[time].push(a)
   })
   const bookedOfferedTimes = new Set(
-    appointments
+    timedAppointments
       .map(a => formatTime(a.startTime))
       .filter(time => offeredTimes.includes(time))
   )
@@ -363,6 +366,42 @@ export function AppointmentsClient({
                     : 'Select one provider to see and book only that doctor\'s offered appointment slots.'}
                 </div>
               )}
+              {dateOnlyAppointments.length > 0 && (
+                <div className="mb-4 rounded-xl border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-indigo-800">
+                    <CalendarDays className="h-4 w-4" />
+                    No fixed time
+                  </div>
+                  <div className="space-y-1.5">
+                    {dateOnlyAppointments.map(appt => {
+                      const cfg = STATUS_CONFIG[appt.status] ?? STATUS_CONFIG.SCHEDULED
+                      const StatusIcon = cfg.icon
+                      return (
+                        <div
+                          key={appt.id}
+                          className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-indigo-100 bg-white px-3 py-2 hover:shadow-sm"
+                          onClick={() => router.push(`/appointments/${appt.id}`)}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {appt.patient.firstName} {appt.patient.lastName}
+                              <span className="ml-2 text-xs text-gray-400">{appt.patient.patientNumber}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {APPOINTMENT_TYPE_LABELS[appt.type] ?? appt.type} - {appt.provider.name}
+                              {appt.reason ? ` - "${appt.reason}"` : ''}
+                            </p>
+                          </div>
+                          <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold', cfg.bg, cfg.text)}>
+                            <StatusIcon className="h-3 w-3" />
+                            {cfg.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               {CALENDAR_TIMES.map(slotTime => {
                 const appts  = apptsByTime[slotTime] || []
                 const [slotHour, slotMinute] = slotTime.split(':').map(Number)
@@ -409,7 +448,7 @@ export function AppointmentsClient({
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-sm font-bold text-gray-900 flex-shrink-0">
-                                  {formatTime(appt.startTime)}
+                                  {appt.isDateOnly ? 'No fixed time' : formatTime(appt.startTime)}
                                 </span>
                                 <span className="text-sm font-semibold text-gray-900 truncate">
                                   {appt.patient.firstName} {appt.patient.lastName}
@@ -573,8 +612,8 @@ export function AppointmentsClient({
                       onClick={() => router.push(`/appointments/${appt.id}`)}
                     >
                       <div className="w-14 flex-shrink-0 text-center">
-                        <p className="text-lg font-bold text-gray-900">{formatTime(appt.startTime)}</p>
-                        <p className="text-xs text-gray-400">{appt.durationMins}m</p>
+                        <p className="text-lg font-bold text-gray-900">{appt.isDateOnly ? 'Date' : formatTime(appt.startTime)}</p>
+                        <p className="text-xs text-gray-400">{appt.isDateOnly ? 'No fixed time' : `${appt.durationMins}m`}</p>
                       </div>
                       <div className="w-0.5 h-12 bg-gray-200 rounded-full flex-shrink-0" />
                       <div className="flex-1 min-w-0">

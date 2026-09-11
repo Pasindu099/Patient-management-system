@@ -88,6 +88,7 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
             appointmentId={appt.id}
             currentStatus={appt.status}
             startTime={appt.startTime.toISOString()}
+            isDateOnly={appt.isDateOnly}
           />
         </div>
 
@@ -122,10 +123,14 @@ export default async function AppointmentDetailPage({ params }: PageProps) {
           {/* Time */}
           <InfoBlock icon={Clock} label="Date & time">
             <p className="text-base font-semibold text-gray-900">{formatDate(appt.startTime, 'EEEE, d MMMM yyyy')}</p>
-            <p className="text-base text-gray-700">
-              {formatTime(appt.startTime)} – {formatTime(appt.endTime)}
-              <span className="text-gray-500"> ({appt.durationMins} min)</span>
-            </p>
+            {appt.isDateOnly ? (
+              <p className="text-base text-gray-700">No fixed time</p>
+            ) : (
+              <p className="text-base text-gray-700">
+                {formatTime(appt.startTime)} - {formatTime(appt.endTime)}
+                <span className="text-gray-500"> ({appt.durationMins} min)</span>
+              </p>
+            )}
             {isHighRisk && (
               <span className="inline-flex items-center gap-1 mt-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
                 <AlertTriangle className="w-3 h-3" />

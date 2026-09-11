@@ -14,7 +14,8 @@ const schema = z.object({
   branchId:     z.string().min(1, 'Please select a branch'),
   type:         z.string().min(1, 'Please select appointment type'),
   date:         z.string().min(1, 'Please select a date'),
-  time:         z.string().min(1, 'Please select a time'),
+  time:         z.string().optional(),
+  dateOnly:     z.boolean().default(false),
   durationMins: z.number().int().min(10),
   chair:        z.string().optional(),
   reason:       z.string().optional(),
@@ -99,6 +100,7 @@ export function NewAppointmentModal({
       providerId:    defaultProviderId ?? '',
       date:          defaultDateStr,
       time:          defaultTime ?? (isWalkIn ? nowTime : ''),
+      dateOnly:      false,
       durationMins:  30,
       bookingSource: isWalkIn ? 'WALKIN' : 'RECEPTIONIST',
       type:          isWalkIn ? 'WALKIN' : '',
@@ -109,6 +111,7 @@ export function NewAppointmentModal({
   const watchedProviderId = watch('providerId')
   const watchedDate = watch('date')
   const watchedTime = watch('time')
+  const watchedDateOnly = watch('dateOnly')
   const availableTimes = canBookAnyTime ? TIME_SLOTS : offeredTimes
 
   // Auto-set duration when type changes
@@ -119,7 +122,7 @@ export function NewAppointmentModal({
   }, [watchedType, setValue])
 
   useEffect(() => {
-    if (canBookAnyTime) return
+    if (canBookAnyTime || watchedDateOnly) return
     if (!watchedProviderId || !watchedDate) {
       setOfferedTimes([])
       if (watchedTime) setValue('time', '')
@@ -149,7 +152,11 @@ export function NewAppointmentModal({
       })
 
     return () => { cancelled = true }
-  }, [canBookAnyTime, watchedProviderId, watchedDate, watchedTime, setValue])
+  }, [canBookAnyTime, watchedDateOnly, watchedProviderId, watchedDate, watchedTime, setValue])
+
+  useEffect(() => {
+    if (watchedDateOnly) setValue('time', '')
+  }, [watchedDateOnly, setValue])
 
   // Debounced patient search
   useEffect(() => {
@@ -169,7 +176,7 @@ export function NewAppointmentModal({
 
   async function onSubmit(data: FormData) {
     setSubmitError('')
-    if (!timeFallsInSession(data.time)) {
+    if (!data.dateOnly && (!data.time || !timeFallsInSession(data.time))) {
       const message = 'Appointments can be booked 09:00-14:00 or 16:00-21:00.'
       setSubmitError(message)
       showToast('error', 'Choose a session time', message)
@@ -177,11 +184,15 @@ export function NewAppointmentModal({
     }
     setSaving(true)
     try {
-      const startTime = new Date(`${data.date}T${data.time}:00`)
+      const startTime = data.dateOnly ? null : new Date(`${data.date}T${data.time}:00`)
       const res = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, startTime: startTime.toISOString() }),
+        body: JSON.stringify({
+          ...data,
+          isDateOnly: data.dateOnly,
+          startTime: startTime?.toISOString() ?? null,
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed to book')
@@ -351,10 +362,12 @@ export function NewAppointmentModal({
                 min={toLocalDateInputValue(new Date())} />
             </div>
             <div>
-              <label className="form-label">Time *</label>
-              <select {...register('time')} className="form-input" disabled={!canBookAnyTime && (!watchedProviderId || loadingTimes || availableTimes.length === 0)}>
+              <label className="form-label">Time{!watchedDateOnly ? ' *' : ''}</label>
+              <select {...register('time')} className="form-input" disabled={watchedDateOnly || (!canBookAnyTime && (!watchedProviderId || loadingTimes || availableTimes.length === 0))}>
                 <option value="">
-                  {canBookAnyTime
+                  {watchedDateOnly
+                    ? 'No fixed time'
+                    : canBookAnyTime
                     ? 'Select...'
                     : !watchedProviderId
                       ? 'Choose provider first'
@@ -368,7 +381,7 @@ export function NewAppointmentModal({
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
-              {!canBookAnyTime && watchedProviderId && watchedDate && !loadingTimes && availableTimes.length === 0 && (
+              {!watchedDateOnly && !canBookAnyTime && watchedProviderId && watchedDate && !loadingTimes && availableTimes.length === 0 && (
                 <p className="mt-1 text-xs font-semibold text-amber-600">
                   This doctor has not offered appointment times for this day.
                 </p>
@@ -383,6 +396,15 @@ export function NewAppointmentModal({
               </select>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
+            <input
+              type="checkbox"
+              {...register('dateOnly')}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600"
+            />
+            Date only - no specific time yet
+          </label>
 
           {/* Chair + Booking source */}
           <div className="grid grid-cols-2 gap-4">

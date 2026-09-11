@@ -65,7 +65,7 @@ export default async function QueuePage() {
       },
       branch: { select: { id: true, name: true } },
       assignedDoctor: { select: { id: true, name: true } },
-      appointment: { select: { id: true, appointmentNumber: true, startTime: true, type: true } },
+      appointment: { select: { id: true, appointmentNumber: true, startTime: true, isDateOnly: true, type: true } },
     },
   })
 

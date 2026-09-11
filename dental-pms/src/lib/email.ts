@@ -79,6 +79,7 @@ export interface AppointmentEmailData {
   branchAddress?: string | null
   branchPhone?: string | null
   startTime: Date
+  isDateOnly?: boolean
   reason?: string | null
 }
 
@@ -112,10 +113,12 @@ function escapeHtml(value: string) {
 export function appointmentConfirmationEmail(data: AppointmentEmailData) {
   const clinicName = process.env.NEXT_PUBLIC_CLINIC_NAME ?? 'Lumora Dental Studio'
   const date = formatDate(data.startTime)
-  const time = formatTime(data.startTime)
+  const time = data.isDateOnly ? 'No fixed time' : formatTime(data.startTime)
   const contactPhone = data.branchPhone ?? process.env.NEXT_PUBLIC_CLINIC_PHONE ?? ''
 
-  const subject = `Appointment confirmed — ${date} at ${time}`
+  const subject = data.isDateOnly
+    ? `Appointment confirmed - ${date}`
+    : `Appointment confirmed - ${date} at ${time}`
 
   const rows: [string, string][] = [
     ['Reference', data.appointmentNumber],

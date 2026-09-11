@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
   const name     = `${patient.firstName} ${patient.lastName}`
   const clinic   = appt.branch?.name ?? 'DentalCare'
   const date     = new Date(appt.startTime).toLocaleDateString('en-LK', { weekday: 'long', day: 'numeric', month: 'long' })
-  const time     = new Date(appt.startTime).toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })
+  const time     = appt.isDateOnly
+    ? 'no fixed time'
+    : new Date(appt.startTime).toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })
 
   let message: string
   if (type === 'appointment_24h') {
@@ -134,7 +136,9 @@ export async function GET(req: NextRequest) {
     const name   = `${appt.patient.firstName} ${appt.patient.lastName}`
     const clinic = appt.branch?.name ?? 'DentalCare'
     const date   = new Date(appt.startTime).toLocaleDateString('en-LK', { weekday: 'long', day: 'numeric', month: 'long' })
-    const time   = new Date(appt.startTime).toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })
+    const time   = appt.isDateOnly
+      ? 'no fixed time'
+      : new Date(appt.startTime).toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })
     const msg    = TEMPLATES.appointment_24h[lang](name, date, time, clinic)
     const ch     = appt.patient.communicationPref ?? 'sms'
     const phone  = appt.patient.phone

@@ -96,6 +96,8 @@ export async function POST(req: NextRequest) {
         // Prefer the booked appointment; fall back to the doctor's stated date.
         nextVisitDate: nextAppointment?.startTime
           ? new Date(nextAppointment.startTime)
+          : nextAppointment?.isDateOnly && nextAppointment?.date
+          ? new Date(`${nextAppointment.date}T12:00:00`)
           : nextVisitDate ? new Date(nextVisitDate) : null,
         status:        status || 'IN_PROGRESS',
         completedAt:   status === 'READY_TO_PAY' || status === 'COMPLETED' ? new Date() : null,
@@ -213,12 +215,20 @@ export async function POST(req: NextRequest) {
       const subtotalCents = toCents(payment.subtotal ?? 0)
       const discountCents = toCents(payment.discount ?? 0)
       const totalCents    = payment.total != null ? toCents(payment.total) : subtotalCents
+      const previousPayment = payment.previousPayment
+      const previousPaidCents = previousPayment?.amount ? toCents(previousPayment.amount) : 0
+      let previousPaidAt: Date | null = null
+      if (previousPaidCents > 0) {
+        previousPaidAt = previousPayment?.paidAt ? new Date(previousPayment.paidAt) : null
+        if (!previousPaidAt || isNaN(previousPaidAt.getTime())) {
+          throw new Error('Previous payment date is required for historical collections.')
+        }
+      }
       const paidNowCents  = payment.type === 'full'
         ? toCents(payment.cash) + toCents(payment.card) + toCents(payment.transfer)
         : 0
-      const balanceCents  = payment.type === 'full'
-        ? Math.max(0, totalCents - paidNowCents)
-        : totalCents
+      const totalPaidCents = previousPaidCents + paidNowCents
+      const balanceCents  = Math.max(0, totalCents - totalPaidCents)
 
       const invoice = await tx.invoice.create({
         data: {
@@ -226,18 +236,18 @@ export async function POST(req: NextRequest) {
           patientId,
           branchId:    branchId || null,
           currency:    'LKR',
-          status:      payment.type === 'waive' && totalCents === 0 ? 'PAID' : 'SENT',
+          status:      balanceCents === 0 ? 'PAID' : totalPaidCents > 0 ? 'PARTIAL' : 'SENT',
           subtotalCents,
           discountCents,
           taxCents:        0,
           totalCents,
-          amountPaidCents: paidNowCents,
+          amountPaidCents: totalPaidCents,
           balanceCents,
           subtotal:   fromCents(subtotalCents), // legacy mirrors
           discount:   fromCents(discountCents),
           tax:        0,
           total:      fromCents(totalCents),
-          amountPaid: fromCents(paidNowCents),
+          amountPaid: fromCents(totalPaidCents),
           balance:    fromCents(balanceCents),
           notes:       payment.notes || null,
           items: {
@@ -260,6 +270,36 @@ export async function POST(req: NextRequest) {
       await tx.visitInvoice.create({
         data: { visitId: visit.id, invoiceId: invoice.id },
       })
+
+      if (previousPaidCents > 0 && previousPaidAt) {
+        const installText = Number(previousPayment?.installmentCount) > 0
+          ? `${Number(previousPayment.installmentCount)} previous installment(s)`
+          : 'Previous collection before PMS entry'
+        const historicalNote = [installText, previousPayment?.note].filter(Boolean).join(' - ')
+        const created = await tx.payment.create({
+          data: {
+            invoiceId: invoice.id,
+            amountCents: previousPaidCents,
+            amount:    fromCents(previousPaidCents),
+            currency:  'LKR',
+            method:    previousPayment?.method || 'cash',
+            notes:     historicalNote,
+            paidAt:    previousPaidAt,
+            processedById: session.user.id,
+          },
+        })
+        await recordLedgerTx(tx, {
+          direction:        'IN',
+          amountCents:      previousPaidCents,
+          categoryCode:     'PATIENT_PAYMENT',
+          branchId:         branchId || null,
+          recordedByUserId: session.user.id,
+          refType:          'payment',
+          refId:            created.id,
+          notes:            historicalNote,
+          date:             previousPaidAt,
+        })
+      }
 
       // Record payment if full payment
       if (payment.type === 'full' && paidNowCents > 0) {
@@ -293,7 +333,7 @@ export async function POST(req: NextRequest) {
 
         // Update invoice if fully paid, then close the visit and queue item
         // so the patient doesn't linger in the payment/reception queues
-        if (paidNowCents >= totalCents) {
+        if (totalPaidCents >= totalCents) {
           await tx.invoice.update({
             where: { id: invoice.id },
             data:  { status: 'PAID', paidDate: new Date(), balanceCents: 0, balance: 0 },
@@ -372,28 +412,34 @@ export async function POST(req: NextRequest) {
 
     // 4b. Schedule only the immediate next appointment requested by the doctor.
     let nextAppointmentId: string | null = null
-    if (nextAppointment?.startTime && branchId) {
-      const startTime = new Date(nextAppointment.startTime)
+    if ((nextAppointment?.startTime || (nextAppointment?.isDateOnly && nextAppointment?.date)) && branchId) {
+      const startTime = nextAppointment.isDateOnly
+        ? new Date(`${nextAppointment.date}T12:00:00`)
+        : new Date(nextAppointment.startTime)
       const durationMins = Number(nextAppointment.durationMins) || 30
-      const endTime = new Date(startTime.getTime() + durationMins * 60 * 1000)
-      const period = periodForTime(startTime)
-      if (!period) throw new Error('Next appointment must be inside clinic sessions: 9:00-14:00 or 16:00-21:00.')
+      if (isNaN(startTime.getTime())) throw new Error('Next appointment date is invalid.')
+      const endTime = nextAppointment.isDateOnly ? startTime : new Date(startTime.getTime() + durationMins * 60 * 1000)
+      let clinicSession: { id: string } | null = null
+      if (!nextAppointment.isDateOnly) {
+        const period = periodForTime(startTime)
+        if (!period) throw new Error('Next appointment must be inside clinic sessions: 9:00-14:00 or 16:00-21:00.')
 
-      const conflict = await tx.appointment.findFirst({
-        where: {
-          providerId: doctorId,
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-          OR: [
-            { startTime: { gte: startTime, lt: endTime } },
-            { endTime:   { gt: startTime, lte: endTime } },
-            { startTime: { lte: startTime }, endTime: { gte: endTime } },
-          ],
-        },
-        select: { appointmentNumber: true },
-      })
-      if (conflict) throw new Error(`Next appointment conflicts with ${conflict.appointmentNumber}. Choose another time.`)
+        const conflict = await tx.appointment.findFirst({
+          where: {
+            providerId: doctorId,
+            status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+            OR: [
+              { startTime: { gte: startTime, lt: endTime } },
+              { endTime:   { gt: startTime, lte: endTime } },
+              { startTime: { lte: startTime }, endTime: { gte: endTime } },
+            ],
+          },
+          select: { appointmentNumber: true },
+        })
+        if (conflict) throw new Error(`Next appointment conflicts with ${conflict.appointmentNumber}. Choose another time.`)
 
-      const clinicSession = await getOrCreateSession(tx, branchId, startTime, period)
+        clinicSession = await getOrCreateSession(tx, branchId, startTime, period)
+      }
       const selectedTreatmentText = Array.isArray(nextAppointment.treatmentItems) && nextAppointment.treatmentItems.length > 0
         ? nextAppointment.treatmentItems
             .map((item: any) => `${item.description}${item.tooth ? ` (T${item.tooth})` : ''}`)
@@ -416,13 +462,14 @@ export async function POST(req: NextRequest) {
           startTime,
           endTime,
           durationMins,
+          isDateOnly: !!nextAppointment.isDateOnly,
           reason: nextAppointment.reason || nextVisitPlan || 'Follow-up treatment',
           notes: [
             `Booked by doctor during visit ${visitNumber}. Only the immediate next session was scheduled.`,
             selectedTreatmentText ? `Selected treatment: ${selectedTreatmentText}` : null,
           ].filter(Boolean).join('\n'),
-          sessionId: clinicSession.id,
-          slotKind: 'APPOINTMENT',
+          sessionId: clinicSession?.id ?? null,
+          slotKind: nextAppointment.isDateOnly ? 'DATE_ONLY' : 'APPOINTMENT',
         },
       })
       nextAppointmentId = appointment.id

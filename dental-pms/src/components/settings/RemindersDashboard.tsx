@@ -11,6 +11,7 @@ import { showToast } from '@/components/ui/Toast'
 interface Appointment {
   id: string
   startTime: string
+  isDateOnly?: boolean
   patient: { firstName: string; lastName: string; phone: string; preferredLanguage: string; communicationPref: string }
   branch?: { name: string }
 }
@@ -204,7 +205,8 @@ export function RemindersDashboard({ pendingAppointments, recentLogs }: Props) {
                 )}>
                   {/* Time */}
                   <div className="w-14 text-center flex-shrink-0">
-                    <p className="text-base font-bold text-gray-900">{formatTime(appt.startTime)}</p>
+                    <p className="text-base font-bold text-gray-900">{appt.isDateOnly ? 'Date' : formatTime(appt.startTime)}</p>
+                    {appt.isDateOnly && <p className="text-[10px] font-semibold text-gray-500">No time</p>}
                     <p className="text-xs text-gray-400">{appt.branch?.name ?? ''}</p>
                   </div>
 
