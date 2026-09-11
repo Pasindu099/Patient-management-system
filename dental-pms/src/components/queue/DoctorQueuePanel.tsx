@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlayCircle, UserCheck, Share2, X, Stethoscope } from 'lucide-react'
 import { cn, formatTime, getPatientDisplayName } from '@/lib/utils'
@@ -30,27 +30,53 @@ export function DoctorQueuePanel({
   const [referNote, setReferNote] = useState('')
   const [doctorStatus, setDoctorStatus] = useState('NOT_STARTED')
 
-  async function loadDoctorStatus() {
-    const res = await fetch('/api/doctor-status')
+  const loadDoctorStatus = useCallback(async () => {
+    const res = await fetch('/api/doctor-status', { cache: 'no-store' })
     if (!res.ok) return
     const rows = await res.json()
     setDoctorStatus(rows.find((row: any) => row.id === currentUser.id)?.status ?? 'NOT_STARTED')
-  }
+  }, [currentUser.id])
+
+  const refresh = useCallback(async () => {
+    const res = await fetch('/api/queue?mine=true', { cache: 'no-store' })
+    if (res.ok) setQueue(await res.json())
+  }, [])
 
   useEffect(() => {
     loadDoctorStatus()
     const onChanged = (event: Event) => {
       const detail = (event as CustomEvent).detail
       if (detail?.status) setDoctorStatus(detail.status)
+      refresh()
     }
     window.addEventListener('doctor-status-changed', onChanged)
     return () => window.removeEventListener('doctor-status-changed', onChanged)
-  }, [])
+  }, [loadDoctorStatus, refresh])
 
-  async function refresh() {
-    const res = await fetch('/api/queue?mine=true')
-    if (res.ok) setQueue(await res.json())
-  }
+  useEffect(() => {
+    setQueue(initialQueue)
+  }, [initialQueue])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      refresh()
+      loadDoctorStatus()
+    }, 10000)
+    const onFocus = () => {
+      refresh()
+      loadDoctorStatus()
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onFocus()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [loadDoctorStatus, refresh])
 
   async function receiveToChair(item: any) {
     if (item.status === 'IN_CHAIR') {
