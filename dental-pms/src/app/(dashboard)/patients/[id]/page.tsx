@@ -80,9 +80,10 @@ export default async function PatientProfilePage({ params }: PageProps) {
       vitalSigns:      { orderBy: { recordedAt: 'desc' }, take: 1 },
       visits: {
         orderBy: { visitDate: 'desc' },
-        take: 5,
+        take: 50,
         include: {
           doctor: { select: { name: true } },
+          branch: { select: { name: true } },
           prescriptions: {
             include: { items: true },
             orderBy: { createdAt: 'desc' },
@@ -93,6 +94,7 @@ export default async function PatientProfilePage({ params }: PageProps) {
                 include: {
                   invoice: {
                     include: {
+                      items: true,
                       installmentPlan: {
                         include: { installments: { orderBy: { number: 'asc' } } },
                       },

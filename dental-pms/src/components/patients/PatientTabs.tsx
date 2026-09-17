@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { cn, formatDate, formatDateTime, formatCurrency, APPOINTMENT_TYPE_LABELS } from '@/lib/utils'
 import {
   Activity, ClipboardList, Receipt,
@@ -35,6 +36,35 @@ const APPT_STATUS_COLOR: Record<string, string> = {
   IN_PROGRESS: 'text-amber-600',
 }
 
+const TOOTH_CONDITION_LABELS: Record<string, string> = {
+  healthy: 'Healthy',
+  caries: 'Caries',
+  filled: 'Filled',
+  crown: 'Crown',
+  rootcanal: 'Root canal',
+  extracted: 'Extracted',
+  missing: 'Missing',
+  implant: 'Implant',
+  fracture: 'Fracture',
+  watch: 'Watch',
+  mobile: 'Mobile',
+  malalignment: 'Mal alignment',
+  bridge: 'Bridge',
+  denture: 'Denture',
+}
+
+function getToothFindings(toothFindings: any) {
+  if (!toothFindings || typeof toothFindings !== 'object') return []
+  return Object.entries(toothFindings)
+    .filter(([, state]: [string, any]) => state?.selected)
+    .map(([tooth, state]: [string, any]) => ({
+      tooth,
+      condition: TOOTH_CONDITION_LABELS[state.condition] ?? state.condition ?? 'Observation',
+      notes: state.notes ?? '',
+    }))
+    .sort((a, b) => Number(a.tooth) - Number(b.tooth))
+}
+
 export function PatientTabs({ patient, canSeeBilling = true }: { patient: any; canSeeBilling?: boolean }) {
   const [activeTab, setActiveTab] = useState('overview')
   // The billing tab is a ledger of every bill this patient has ever had —
@@ -46,6 +76,7 @@ export function PatientTabs({ patient, canSeeBilling = true }: { patient: any; c
   const medications = (medHx?.medications as any[]) ?? []
   const conditions  = (medHx?.conditions  as any[]) ?? []
   const appointments = patient.appointments ?? []
+  const visits = patient.visits ?? []
   const treatmentPlans = patient.treatmentPlans ?? []
   const recalls = patient.recalls ?? []
   const vitalSigns = patient.vitalSigns ?? []
@@ -300,38 +331,101 @@ export function PatientTabs({ patient, canSeeBilling = true }: { patient: any; c
         {activeTab === 'dental' && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Visit history</h3>
-            {appointments.length === 0 ? (
+            {visits.length === 0 ? (
               <p className="text-base text-gray-400 italic">No visits recorded</p>
             ) : (
-              <div className="space-y-1">
-                {appointments.map((appt: any) => {
-                  const Icon  = APPT_STATUS_ICON[appt.status]  ?? Clock
-                  const color = APPT_STATUS_COLOR[appt.status] ?? 'text-gray-400'
+              <div className="space-y-3">
+                {visits.map((visit: any) => {
+                  const findings = getToothFindings(visit.toothFindings)
+                  const invoiceItems = (visit.invoices ?? [])
+                    .flatMap((link: any) => link.invoice?.items ?? [])
                   return (
-                    <div key={appt.id}
-                         className="flex items-center gap-4 px-4 py-3 rounded-xl
-                                    hover:bg-gray-50 border border-transparent
-                                    hover:border-gray-200 transition-colors">
-                      <Icon className={cn('w-5 h-5 flex-shrink-0', color)} />
-                      <div className="flex-1">
-                        <p className="text-base font-semibold text-gray-900">
-                          {APPOINTMENT_TYPE_LABELS[appt.type] ?? appt.type}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {appt.provider.name}
-                          {appt.notes ? ` · ${appt.notes}` : ''}
-                        </p>
+                    <div key={visit.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="p-4 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-gray-900">
+                            {visit.visitNumber ?? 'Visit'} - Dr. {visit.doctor?.name ?? 'Unassigned'}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {formatDateTime(visit.visitDate)}
+                            {visit.branch?.name ? ` | ${visit.branch.name}` : ''}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          'text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
+                          visit.status === 'COMPLETED' ? 'bg-green-100 text-green-700'
+                          : visit.status === 'READY_TO_PAY' ? 'bg-amber-100 text-amber-800'
+                          : 'bg-blue-100 text-blue-700'
+                        )}>
+                          {visit.status}
+                        </span>
                       </div>
-                      <p className="text-base text-gray-500 flex-shrink-0">
-                        {formatDate(appt.startTime)}
-                      </p>
+
+                      {(visit.chiefComplaint || visit.examination || visit.diagnosis) && (
+                        <div className="grid grid-cols-1 gap-3 border-y border-gray-100 py-4 sm:grid-cols-3">
+                          {[
+                            ['Chief complaint', visit.chiefComplaint],
+                            ['Examination findings', visit.examination],
+                            ['Diagnosis', visit.diagnosis],
+                          ].map(([label, value]) => value && (
+                            <div key={label} className="min-w-0">
+                              <p className="mb-1 text-xs font-semibold uppercase text-gray-400">{label}</p>
+                              <p className="whitespace-pre-wrap text-sm text-gray-800">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {visit.treatmentDone && (
+                        <div className="text-sm">
+                          <span className="font-semibold text-gray-500">Treatment done: </span>
+                          <span className="text-gray-800">{visit.treatmentDone}</span>
+                        </div>
+                      )}
+
+                      {invoiceItems.length > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100">
+                          {invoiceItems.map((item: any) => (
+                            <div key={item.id} className="grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-2 text-sm border-b border-gray-100 last:border-0">
+                              <span className="font-medium text-gray-800">{item.description}</span>
+                              <span className="text-gray-500 font-mono">{item.toothNumbers || '-'}</span>
+                              {canSeeBilling && <span className="font-semibold text-gray-900">{formatCurrency(item.total)}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {findings.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-gray-400 mb-2">Tooth observations</p>
+                          <div className="flex flex-wrap gap-2">
+                            {findings.map(finding => (
+                              <span key={finding.tooth} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                T{finding.tooth}: {finding.condition}{finding.notes ? ` - ${finding.notes}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {visit.nextVisitPlan && (
+                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                          Next visit plan: {visit.nextVisitPlan}
+                        </p>
+                      )}
+                      </div>
+                      <div className="flex justify-end border-t border-gray-100 bg-gray-50 px-4 py-2">
+                        <Link href={`/visits/${visit.id}`} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+                          View full visit
+                        </Link>
+                      </div>
                     </div>
                   )
                 })}
               </div>
             )}
 
-            {/* Clinical notes */}
             {clinicalNotes.length > 0 && (
               <>
                 <h3 className="text-lg font-semibold text-gray-900 mt-6">Clinical notes</h3>
@@ -345,12 +439,11 @@ export function PatientTabs({ patient, canSeeBilling = true }: { patient: any; c
                             {note.noteType}
                           </span>
                           {note.isLocked && (
-                            <span className="text-xs bg-gray-100 text-gray-500 px-2
-                                             py-0.5 rounded-full">Locked</span>
+                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Locked</span>
                           )}
                         </div>
                         <p className="text-sm text-gray-400">
-                          {note.author.name} · {formatDateTime(note.createdAt)}
+                          {note.author.name} - {formatDateTime(note.createdAt)}
                         </p>
                       </div>
                       {note.subjective && (
