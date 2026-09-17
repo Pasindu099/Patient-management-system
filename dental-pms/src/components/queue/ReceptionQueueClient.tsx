@@ -23,7 +23,6 @@ export function ReceptionQueueClient({ initialQueue, branches, providers, curren
   const [patientSearch, setPatientSearch] = useState('')
   const [patientResults, setPatientResults] = useState<any[]>([])
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
-  const [tokenNumber, setTokenNumber] = useState('')
   const [patientType, setPatientType] = useState('UNKNOWN')
   const [displayName, setDisplayName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -88,15 +87,6 @@ export function ReceptionQueueClient({ initialQueue, branches, providers, curren
   }, [patientSearch])
 
   async function addToQueue() {
-    if (!selectedPatient && !tokenNumber.trim()) {
-      showToast('error', 'Enter a token number or select a patient')
-      return
-    }
-    const parsedToken = tokenNumber.trim() ? parseQueueToken(tokenNumber) : null
-    if (tokenNumber.trim() && !parsedToken) {
-      showToast('error', 'Enter a valid token number', 'Use the number printed on the token, for example 14.')
-      return
-    }
     const walkInName = displayName.trim() || patientSearch.trim()
     setSaving(true)
     try {
@@ -105,7 +95,6 @@ export function ReceptionQueueClient({ initialQueue, branches, providers, curren
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: selectedPatient?.id ?? null,
-          queueNumber: parsedToken,
           branchId,
           assignedDoctorId: assignedDoctorId || null,
           source: 'WALK_IN',
@@ -118,11 +107,12 @@ export function ReceptionQueueClient({ initialQueue, branches, providers, curren
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Could not add patient to queue')
-      showToast('success', selectedPatient ? `${getPatientDisplayName(selectedPatient)} added to queue` : `Token ${tokenNumber} added to queue`)
+      showToast('success', selectedPatient
+        ? `${getPatientDisplayName(selectedPatient)} added as token ${json.queueNumber}`
+        : `Token ${json.queueNumber} added to queue`)
       setSelectedPatient(null)
       setPatientSearch('')
       setPatientResults([])
-      setTokenNumber('')
       setPatientType('UNKNOWN')
       setDisplayName('')
       setContactPhone('')
@@ -184,16 +174,6 @@ export function ReceptionQueueClient({ initialQueue, branches, providers, curren
           <h2 className="text-lg font-semibold text-gray-900">Add token to lobby</h2>
         </div>
         <div className="section-card-body grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-          <div className="lg:col-span-2">
-            <label className="form-label">Token</label>
-            <input
-              value={tokenNumber}
-              onChange={e => setTokenNumber(e.target.value)}
-              className="form-input text-lg font-bold"
-              inputMode="numeric"
-              placeholder="12"
-            />
-          </div>
           <div className="lg:col-span-3">
             <label className="form-label">Patient search</label>
             {selectedPatient ? (
@@ -292,13 +272,6 @@ export function ReceptionQueueClient({ initialQueue, branches, providers, curren
       )}
     </div>
   )
-}
-
-function parseQueueToken(token: string) {
-  const digits = token.match(/\d+/)?.[0]
-  if (!digits) return null
-  const value = Number(digits)
-  return Number.isInteger(value) && value > 0 ? value : null
 }
 
 function queueDisplayName(item: any) {

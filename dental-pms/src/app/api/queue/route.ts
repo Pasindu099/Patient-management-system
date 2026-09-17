@@ -103,9 +103,6 @@ export async function POST(req: NextRequest) {
   }
 
   const d = parsed.data
-  if (!d.patientId && !d.queueNumber) {
-    return NextResponse.json({ error: 'Enter a token number or select a patient' }, { status: 400 })
-  }
   if (d.patientId) {
     const existing = await prisma.receptionQueueItem.findFirst({
       where: {
@@ -122,29 +119,22 @@ export async function POST(req: NextRequest) {
   const period = periodForTime(now)
   const clinicSession = period ? await getOrCreateSession(prisma, d.branchId, now, period) : null
 
-  // Token numbers reset per session, not per day: appointment patients get
-  // priority (higher `priority` value) and are numbered separately from
-  // walk-ins so the ordered list keeps appointment slot-time order.
-  const requestedQueueNumber = d.queueNumber ?? null
-  if (requestedQueueNumber && clinicSession) {
-    const existingToken = await prisma.receptionQueueItem.findFirst({
-      where: {
-        sessionId: clinicSession.id,
-        queueNumber: requestedQueueNumber,
-        status: { in: openStatuses },
-      },
-      select: { id: true },
-    })
-    if (existingToken) return NextResponse.json({ error: `Token ${requestedQueueNumber} is already in the queue` }, { status: 409 })
-  }
+  // Token numbers are assigned by the system. They reset for each clinic
+  // session; outside configured session hours, fall back to the current branch
+  // day so reception never has to type a number manually.
+  const fallbackDayStart = new Date(now)
+  fallbackDayStart.setHours(0, 0, 0, 0)
+  const fallbackDayEnd = new Date(fallbackDayStart)
+  fallbackDayEnd.setDate(fallbackDayEnd.getDate() + 1)
+  const tokenScopeWhere = clinicSession
+    ? { sessionId: clinicSession.id }
+    : { branchId: d.branchId, sessionId: null, arrivedAt: { gte: fallbackDayStart, lt: fallbackDayEnd } }
 
-  const lastInSession = !requestedQueueNumber && clinicSession
-    ? await prisma.receptionQueueItem.findFirst({
-        where: { sessionId: clinicSession.id },
-        orderBy: { queueNumber: 'desc' },
-        select: { queueNumber: true },
-      })
-    : null
+  const lastInScope = await prisma.receptionQueueItem.findFirst({
+    where: tokenScopeWhere,
+    orderBy: { queueNumber: 'desc' },
+    select: { queueNumber: true },
+  })
 
   const item = await prisma.receptionQueueItem.create({
     data: {
@@ -153,7 +143,7 @@ export async function POST(req: NextRequest) {
       appointmentId: d.appointmentId || null,
       assignedDoctorId: d.assignedDoctorId || null,
       sessionId: clinicSession?.id ?? null,
-      queueNumber: requestedQueueNumber ?? (lastInSession?.queueNumber ?? 0) + 1,
+      queueNumber: (lastInScope?.queueNumber ?? 0) + 1,
       source: d.source,
       patientType: d.patientId ? 'EXISTING' : d.patientType,
       intakeStatus: d.patientId ? 'MATCHED' : d.intakeStatus,
