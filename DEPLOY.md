@@ -3,6 +3,8 @@
 This deploys both apps as Docker containers on a single Hetzner Cloud VPS,
 fronted by Caddy (automatic HTTPS), sharing one PostgreSQL database.
 
+> **Canonical migration control:** Follow [deploy/WAVE-0-RUNBOOK.md](deploy/WAVE-0-RUNBOOK.md) for all Wave 0 operations. The PMS is the sole Prisma migration owner. The website must never run migrations or write canonical control-plane records. Production canonical mode defaults to disabled, all allowlists remain empty, and audit queries must use the dedicated `lumora_audit_ro` role. Never deploy an image containing a pending Wave 0 migration until `W0-PROD-DDL-GATE` has recorded PASS.
+
 ```
                     Internet
                        │

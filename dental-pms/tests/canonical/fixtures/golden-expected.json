@@ -1,0 +1,7 @@
+{
+  "fixtureVersion": "wave0-v1",
+  "fixtureCount": 15,
+  "colomboJanuaryEndUtc": "2026-01-31T18:29:59.999Z",
+  "colomboFebruaryStartUtc": "2026-01-31T18:30:00.000Z",
+  "requiredIds": ["GF-001", "GF-002", "GF-003", "GF-004", "GF-005", "GF-006", "GF-007", "GF-008", "GF-009", "GF-010", "GF-011", "GF-012", "GF-013", "GF-014", "GF-015"]
+}

@@ -1258,3 +1258,136 @@ model AgentAction {
   @@index([status, createdAt])
   @@map("agent_actions")
 }
+
+// Read-only schema mirror for Wave 0 control-plane models. The website never
+// runs migrations or writes these tables; the PMS remains the sole owner.
+enum CanonicalMigrationStatus {
+  PLANNED
+  DRY_RUN
+  REVIEW_REQUIRED
+  APPROVED
+  RUNNING
+  VALIDATING
+  COMPLETED
+  FAILED
+  BLOCKED
+  ROLLED_BACK
+}
+
+enum CanonicalMigrationCountType {
+  SOURCE
+  CANDIDATE
+  MIGRATED
+  SKIPPED
+  EXCEPTION
+  VALIDATED
+}
+
+enum CanonicalFeatureControlType {
+  WRITE_CAPTURE
+  SHADOW_READ
+  METRIC_READ
+  DOMAIN_CUTOVER
+  ALERT_TYPE
+  UI_SURFACE
+}
+
+model CanonicalMigrationBatch {
+  id                   String                   @id @db.Uuid
+  wave                 Int
+  scopeType            String
+  scopeKey             String                   @default("*")
+  domain               String?
+  sourceSnapshotId     String
+  sourceChecksum       String
+  buildSha             String
+  actorType            String
+  actorId              String?
+  dryRun               Boolean                  @default(true)
+  status               CanonicalMigrationStatus @default(PLANNED)
+  approvalReference    String?
+  validationResult     String?
+  artifactManifestHash String?
+  startedAt            DateTime                 @default(now())
+  completedAt          DateTime?
+  createdAt            DateTime                 @default(now())
+
+  counts CanonicalMigrationBatchCount[]
+  events CanonicalMigrationRunEvent[]
+
+  @@index([wave, domain, status])
+  @@index([sourceSnapshotId])
+  @@map("canonical_migration_batches")
+}
+
+model CanonicalMigrationBatchCount {
+  id          String                      @id @db.Uuid
+  batchId     String                      @db.Uuid
+  batch       CanonicalMigrationBatch     @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  sourceName  String
+  entityType  String
+  countType   CanonicalMigrationCountType
+  rowCount    BigInt
+  amountCents BigInt?
+  currency    String?
+  checksum    String?
+  createdAt   DateTime                    @default(now())
+
+  @@unique([batchId, sourceName, entityType, countType])
+  @@index([batchId, countType])
+  @@map("canonical_migration_batch_counts")
+}
+
+model CanonicalMigrationRunEvent {
+  id           String                    @id @db.Uuid
+  batchId      String                    @db.Uuid
+  batch        CanonicalMigrationBatch   @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  priorStatus  CanonicalMigrationStatus?
+  newStatus    CanonicalMigrationStatus
+  actorType    String
+  actorId      String?
+  buildSha     String
+  reason       String?
+  checkpoint   Json?
+  errorClass   String?
+  evidenceHash String?
+  occurredAt   DateTime                  @default(now())
+
+  @@index([batchId, occurredAt])
+  @@map("canonical_migration_run_events")
+}
+
+model CanonicalFeatureFlag {
+  id          String                      @id @db.Uuid
+  key         String                      @unique
+  controlType CanonicalFeatureControlType
+  domain      String
+  featureKey  String
+  scopeType   String                      @default("GLOBAL")
+  scopeKey    String                      @default("*")
+  createdAt   DateTime                    @default(now())
+
+  versions CanonicalFeatureFlagVersion[]
+
+  @@unique([controlType, domain, featureKey, scopeType, scopeKey])
+  @@index([controlType, domain])
+  @@map("canonical_feature_flags")
+}
+
+model CanonicalFeatureFlagVersion {
+  id                String               @id @db.Uuid
+  flagId            String               @db.Uuid
+  flag              CanonicalFeatureFlag @relation(fields: [flagId], references: [id], onDelete: Restrict)
+  enabled           Boolean              @default(false)
+  effectiveAt       DateTime
+  expiresAt         DateTime?
+  actorType         String
+  actorId           String?
+  reason            String
+  approvalReference String?
+  createdAt         DateTime              @default(now())
+
+  @@unique([flagId, effectiveAt])
+  @@index([flagId, effectiveAt, expiresAt])
+  @@map("canonical_feature_flag_versions")
+}

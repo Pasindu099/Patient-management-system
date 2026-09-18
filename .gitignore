@@ -48,6 +48,12 @@ prisma/dev.db-journal
 *.7z
 *.rar
 *.b64
+*.dump
+*.backup
+audit/canonical/runtime/
+audit/canonical/backups/
+audit/canonical/restores/
+dental-pms/.npm-cache/
 
 # OS / editor
 .DS_Store

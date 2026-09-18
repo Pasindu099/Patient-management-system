@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumora.internal/schemas/baseline-manifest-v1.json",
+  "title": "Lumora Wave 0 baseline manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "fingerprint", "reconciliation", "readOnlyEvidence"],
+  "properties": {
+    "kind": { "const": "lumora-wave0-baseline-v1" },
+    "fingerprint": {
+      "type": "object",
+      "required": ["capturedAt", "database", "schemaSha256", "tableCounts", "tableCountsSha256", "tableIdentityDigests", "tableIdentityDigestsSha256", "migrationHistorySha256"],
+      "properties": {
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "database": { "type": "object" },
+        "schema": { "type": "object" },
+        "schemaSha256": { "$ref": "#/$defs/sha256" },
+        "tableCounts": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[0-9]+$" } },
+        "tableCountsSha256": { "$ref": "#/$defs/sha256" },
+        "tableIdentityDigests": { "type": "object", "additionalProperties": { "type": ["string", "null"] } },
+        "tableIdentityDigestsSha256": { "$ref": "#/$defs/sha256" },
+        "migrationHistory": { "type": "array" },
+        "migrationHistorySha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "reconciliation": { "type": "object" },
+    "readOnlyEvidence": { "type": "array", "minItems": 1 }
+  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } }
+}

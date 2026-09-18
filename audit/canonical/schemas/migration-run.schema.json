@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumora.internal/schemas/migration-run-v1.json",
+  "title": "Lumora canonical migration run evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "batchId", "wave", "mode", "status", "buildSha", "sourceSnapshotId", "sourceChecksum", "events", "artifactManifestHash"],
+  "properties": {
+    "kind": { "const": "lumora-canonical-migration-run-v1" },
+    "batchId": { "type": "string", "format": "uuid" },
+    "wave": { "type": "integer", "minimum": 0 },
+    "mode": { "enum": ["dry-run", "execute"] },
+    "status": { "enum": ["PLANNED", "DRY_RUN", "REVIEW_REQUIRED", "APPROVED", "RUNNING", "VALIDATING", "COMPLETED", "FAILED", "BLOCKED", "ROLLED_BACK"] },
+    "buildSha": { "type": "string", "minLength": 7 },
+    "sourceSnapshotId": { "type": "string", "minLength": 1 },
+    "sourceChecksum": { "$ref": "#/$defs/sha256" },
+    "approvalReference": { "type": ["string", "null"] },
+    "events": { "type": "array" },
+    "counts": { "type": "array" },
+    "artifactManifestHash": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } }
+}

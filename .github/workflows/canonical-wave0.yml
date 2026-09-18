@@ -1,0 +1,68 @@
+name: Canonical Wave 0
+
+on:
+  pull_request:
+  push:
+    branches: [main, master, wave0-implementation]
+
+jobs:
+  wave0:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wave0
+          POSTGRES_PASSWORD: wave0
+          POSTGRES_DB: wave0
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wave0 -d wave0"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://wave0:wave0@localhost:5432/wave0
+      NEXTAUTH_SECRET: wave0-ci-only-secret
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3001
+      CANONICAL_MIGRATION_MODE: disabled
+      CANONICAL_WRITE_CAPTURE_ALLOWLIST: ""
+      CANONICAL_SHADOW_READ_ALLOWLIST: ""
+      CANONICAL_METRIC_READ_ALLOWLIST: ""
+      CANONICAL_DOMAIN_CUTOVER_ALLOWLIST: ""
+      CANONICAL_ALERT_TYPE_ALLOWLIST: ""
+      CANONICAL_UI_SURFACE_ALLOWLIST: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            dental-pms/package-lock.json
+            lumora-website/package-lock.json
+      - name: Install PMS dependencies
+        working-directory: dental-pms
+        run: npm ci
+      - name: Validate and generate PMS schema
+        working-directory: dental-pms
+        run: npx prisma validate && npx prisma generate
+      - name: Apply migrations to fresh database
+        working-directory: dental-pms
+        run: npx prisma migrate deploy
+      - name: Canonical tests
+        working-directory: dental-pms
+        run: npm run test:canonical
+      - name: PMS type check and build
+        working-directory: dental-pms
+        run: npx tsc --noEmit && npm run build
+      - name: Install website dependencies
+        working-directory: lumora-website
+        run: npm ci
+      - name: Prove website has no migration command
+        run: |
+          ! grep -R -E 'prisma[[:space:]]+migrate|migrate[[:space:]]+deploy' lumora-website/package.json lumora-website/Dockerfile
+          ! grep -R -E 'canonicalMigration|canonicalFeatureFlag' lumora-website/src
+      - name: Validate, generate, type check and build website
+        working-directory: lumora-website
+        run: npx prisma validate && npx prisma generate && npx tsc --noEmit && npm run build
