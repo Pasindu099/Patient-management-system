@@ -36,6 +36,7 @@ async function main() {
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
     NEXT_PUBLIC_SITE_URL: "http://localhost:3001",
     CANONICAL_MIGRATION_MODE: "disabled",
+    WAVE0_LEDGER_TEST_DATABASE_URL: freshDatabaseUrl,
   };
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
@@ -75,7 +76,7 @@ async function main() {
   if (/prisma\s+migrate|migrate\s+deploy/i.test(websitePackage + websiteDockerfile)) throw new Error("Website contains a migration command");
 
   await writeEvidenceArtifact(gateDir, "canonical-tests.json", {
-    kind: "lumora-wave0-canonical-tests-v1", status: "PASS", testFiles: 4, tests: 22,
+    kind: "lumora-wave0-canonical-tests-v1", status: "PASS", testFiles: 5, tests: 23,
     vitest: "3.2.4", checks: checks.slice(0, 2),
   });
   await writeEvidenceArtifact(gateDir, "ci.json", {

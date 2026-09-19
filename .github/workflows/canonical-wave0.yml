@@ -32,6 +32,7 @@ jobs:
       CANONICAL_DOMAIN_CUTOVER_ALLOWLIST: ""
       CANONICAL_ALERT_TYPE_ALLOWLIST: ""
       CANONICAL_UI_SURFACE_ALLOWLIST: ""
+      WAVE0_LEDGER_TEST_DATABASE_URL: postgresql://wave0:wave0@localhost:5432/wave0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

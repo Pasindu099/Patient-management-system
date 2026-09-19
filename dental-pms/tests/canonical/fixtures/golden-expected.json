@@ -3,5 +3,22 @@
   "fixtureCount": 15,
   "colomboJanuaryEndUtc": "2026-01-31T18:29:59.999Z",
   "colomboFebruaryStartUtc": "2026-01-31T18:30:00.000Z",
-  "requiredIds": ["GF-001", "GF-002", "GF-003", "GF-004", "GF-005", "GF-006", "GF-007", "GF-008", "GF-009", "GF-010", "GF-011", "GF-012", "GF-013", "GF-014", "GF-015"]
+  "requiredIds": ["GF-001", "GF-002", "GF-003", "GF-004", "GF-005", "GF-006", "GF-007", "GF-008", "GF-009", "GF-010", "GF-011", "GF-012", "GF-013", "GF-014", "GF-015"],
+  "expectedById": {
+    "GF-001": { "invoiceCents": 10000, "paymentCents": 10000, "balanceCents": 0 },
+    "GF-002": { "invoiceCents": 10000, "januaryPaidCents": 4000, "februaryPaidCents": 6000 },
+    "GF-003": { "originalCents": 10000, "reversalCents": -10000, "refundCents": -2500 },
+    "GF-004": { "branch": "Unassigned", "clinicCount": 1 },
+    "GF-005": { "doctor": "Unassigned", "completedCount": 1 },
+    "GF-006": { "firstBasisPoints": 3333, "secondBasisPoints": 3333, "thirdBasisPoints": 3334, "totalBasisPoints": 10000 },
+    "GF-007": { "presentationBranch": "branch_a", "acceptanceBranch": "branch_b", "serviceBranch": "branch_c" },
+    "GF-008": { "originalClosed": true, "newOccurrence": true, "outcomes": 2 },
+    "GF-009": { "originalPreserved": true, "latestOutcome": "ARRIVED" },
+    "GF-010": { "segments": 2, "overlaps": 0 },
+    "GF-011": { "events": 3, "historicalCompletionPreserved": true },
+    "GF-012": { "januaryDays": 31, "februaryDays": 28, "rounding": "half-away-from-zero" },
+    "GF-013": { "opening": 10, "receipt": 5, "transferOut": 3, "consumed": 2, "closing": 10 },
+    "GF-014": { "quantity": 10, "valueCents": null, "coverage": "UNKNOWN" },
+    "GF-015": { "episodes": 1, "duplicateSuppressed": true, "finalState": "RESOLVED" }
+  }
 }

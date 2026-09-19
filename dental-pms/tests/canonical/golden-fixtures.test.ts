@@ -7,6 +7,9 @@ describe("Wave 0 golden fixtures", () => {
   it("contains every approved synthetic scenario exactly once", () => {
     expect(goldenFixtures.map((fixture) => fixture.id)).toEqual(expected.requiredIds);
     expect(new Set(goldenFixtures.map((fixture) => fixture.id)).size).toBe(expected.fixtureCount);
+    for (const fixture of goldenFixtures) {
+      expect(fixture.expected).toEqual(expected.expectedById[fixture.id as keyof typeof expected.expectedById]);
+    }
   });
 
   it("pins the Colombo month boundary", () => {
