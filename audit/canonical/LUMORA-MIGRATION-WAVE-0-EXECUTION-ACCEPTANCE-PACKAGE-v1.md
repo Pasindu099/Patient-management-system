@@ -66,7 +66,7 @@ Additional Wave 0 safety files: `wave0-prod-ddl-gate.ts`, `wave0-prepare-gate.ts
 - Migration SQL SHA-256: `cab33e5108d3cfe82011a33d7d1a3c41819d532e3b059b9a82ff3e3cc4cbd569`.
 - Reviewed reconciliation SQL SHA-256: `c91295a147182ae6251825e22c31a7895b98aeb872050ee55f8adcad79cd122e`.
 - Production Node `20.20.2`, npm `10.8.2`, Prisma Client `5.22.0`, Next.js `15.5.23`, PostgreSQL `16.14`. Local Node `24.15.0`, npm `11.12.1`.
-- Production PMS image: `sha256:1453c0f02edb41c1948644c7e0247df9adf11c030d0d9368fcd618b657aa1c9e`; website image: `sha256:2050a4aab9963d9857eac5c428fb50bcd2a6a430e5e4ab2f97eae5b089b2e298`.
+- Production PMS image: `sha256:b709f2bdb30d54e7553585e2ea7670355194db932c552f81f209596f5c2539af`; website image: `sha256:2050a4aab9963d9857eac5c428fb50bcd2a6a430e5e4ab2f97eae5b089b2e298`.
 - GitHub Actions: [initial deployment run 35397609188](https://github.com/Pasindu099/Patient-management-system/actions/runs/35397609188) PASS; [ledger follow-up run 35468353949](https://github.com/Pasindu099/Patient-management-system/actions/runs/35468353949) PASS.
 
 ## C. Production Schema Evidence
@@ -137,4 +137,4 @@ Sanitized local runtime evidence (ignored by Git): `audit/canonical/runtime/gate
 
 ## Final Verification Addendum
 
-The follow-up ledger/golden-fixture commit passed GitHub Actions run 35468353949. No owner approval reference has been recorded. Do not change W0-G12 or begin Wave 1 merely because CI passes.
+The follow-up ledger/golden-fixture commit passed GitHub Actions run 35468353949. The PMS image was rebuilt from the synchronized follow-up source and only the PMS service was restarted. The running image ID matches the digest above; startup reported 14 migrations and **no pending migrations**, then Next.js ready. Post-restart live responses were PMS login `200`, protected dashboard `307`, website home `200`, and public slots `200`. The website image was unchanged. Production migration mode remained `disabled` and all canonical allowlists remained empty. No owner approval reference has been recorded. Do not change W0-G12 or begin Wave 1 merely because CI and live smoke pass.
