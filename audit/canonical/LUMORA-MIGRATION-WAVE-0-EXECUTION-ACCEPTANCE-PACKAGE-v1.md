@@ -1,8 +1,8 @@
 # LUMORA MIGRATION WAVE 0 EXECUTION & ACCEPTANCE PACKAGE v1
 
-Status: **WAVE 0 IMPLEMENTATION INCOMPLETE / BLOCKED - OWNER ACCEPTANCE PENDING**
+Status: **WAVE 0 IMPLEMENTED AND ACCEPTED**
 
-Prepared: 19 September 2026. Scope: **Wave 0 only**. Wave 1 remains **NOT AUTHORIZED**. Technical Architecture remains **TECHNICAL ARCHITECTURE APPROVED**. No canonical business-domain table, event, backfill, repair, dashboard switch, API change, or UI workflow change was authorized or delivered by Wave 0.
+Prepared: 19 September 2026. Scope: **Wave 0 only**. Wave 1 specification is authorized; Wave 1 implementation remains **NOT AUTHORIZED**. Technical Architecture remains **TECHNICAL ARCHITECTURE APPROVED**. No canonical business-domain table, event, backfill, repair, dashboard switch, API change, or UI workflow change was authorized or delivered by Wave 0.
 
 ## A. Implementation Manifest
 
@@ -127,9 +127,9 @@ For the 53 pre-existing public tables, pre/post comparison found identical objec
 | W0-G09 Reconciliation | PASS | Same backup snapshot reproduces query-pack output/digest in restore |
 | W0-G10 Rollback | PASS | Isolated restore and read fallback require no data deletion; no destructive down migration |
 | W0-G11 Behavior | PASS | PMS/website live smoke, normal current behavior, no canonical activation |
-| W0-G12 Approval | BLOCKED | Named technical and data-owner review/approval references have not been provided |
+| W0-G12 Approval | PASS - OWNER DECISION | Explicit Wave 0 owner acceptance in decision reference `W0-OWNER-DECISION-2026-09-19` (SHA-256 below). Individual technical/data approver names and the original decision timestamp were not stated in the supplied decision and remain an audit metadata gap, not an inferred approval. |
 
-No overall Wave 0 PASS is claimed while W0-G12 is blocked. The owner should review the backup retention, comparison limits, known pre-existing data exceptions, and this package before recording technical/data-owner approval. **Wave 1 remains NOT AUTHORIZED.**
+The owner has explicitly recorded **WAVE 0 IMPLEMENTED AND ACCEPTED**. The technical architecture remains **TECHNICAL ARCHITECTURE APPROVED**. Wave 1 is **SPECIFICATION AUTHORIZED / IMPLEMENTATION NOT AUTHORIZED**; no Wave 1 deployment, migration, capture or business-workflow change is authorized by this decision.
 
 ## J. Evidence Locations
 
@@ -137,4 +137,14 @@ Sanitized local runtime evidence (ignored by Git): `audit/canonical/runtime/gate
 
 ## Final Verification Addendum
 
-The follow-up ledger/golden-fixture commit passed GitHub Actions run 35468353949. The PMS image was rebuilt from the synchronized follow-up source and only the PMS service was restarted. The running image ID matches the digest above; startup reported 14 migrations and **no pending migrations**, then Next.js ready. Post-restart live responses were PMS login `200`, protected dashboard `307`, website home `200`, and public slots `200`. The website image was unchanged. Production migration mode remained `disabled` and all canonical allowlists remained empty. No owner approval reference has been recorded. Do not change W0-G12 or begin Wave 1 merely because CI and live smoke pass.
+The follow-up ledger/golden-fixture commit passed GitHub Actions run 35468353949. The PMS image was rebuilt from the synchronized follow-up source and only the PMS service was restarted. The running image ID matches the digest above; startup reported 14 migrations and **no pending migrations**, then Next.js ready. Post-restart live responses were PMS login `200`, protected dashboard `307`, website home `200`, and public slots `200`. The website image was unchanged. Production migration mode remained `disabled` and all canonical allowlists remained empty. This verification preceded, and did not itself imply, owner acceptance.
+
+## Owner Decision And Carry-Forward
+
+- Approval reference: `W0-OWNER-DECISION-2026-09-19`, the user-provided decision in Codex attachment `c9d4ac88-4b1c-4237-a517-06063997f127/pasted-text.txt`; SHA-256 `87a050691be0d7fe11067ad4d86e126ed41f4d32c83b3e2c37dd0159ce26768f`. Decision text: **WAVE 0 IMPLEMENTED AND ACCEPTED**. The attachment itself remains outside Git; only its reference and hash are recorded here.
+- Status history: the previous package revision was **WAVE 0 IMPLEMENTATION INCOMPLETE / BLOCKED - OWNER ACCEPTANCE PENDING** solely because W0-G12 lacked an owner decision. Its execution, retry, failure and verification evidence is preserved above; the new decision changes the acceptance status, not the underlying evidence.
+- Approval record date: 19 September 2026. The source did not state its original decision time or the personal names of the technical and data approvers. Recorded in this package on 19 September 2026 at 21:04 UTC; this is a **recorded-at time**, not a claimed decision time. Named approver identities and original decision time must be appended by reference when supplied; do not fabricate them from the repository or CI logs.
+- Non-blocking off-VPS recovery item: before any Wave 1 production DDL is authorized, retain at least one encrypted recovery copy outside the production VPS or independently resilient to VPS loss. Record its artifact SHA-256, encrypted storage location/reference, retention policy, access restriction and restore provenance. Do not put dumps or private keys in Git. The current Wave 0 root-only VPS copy is not asserted to satisfy this future requirement.
+- Known historical exceptions remain unresolved inputs to later domain waves: payment/ledger exceptions, missing historical paid dates, queue/Visit conflicts, missing historical attribution, treatment event gaps, payroll absence and inventory-history gaps. Wave 0 acceptance neither repairs nor reinterprets them.
+
+**Wave 1 specification is authorized; Wave 1 implementation is not authorized.**
