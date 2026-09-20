@@ -57,7 +57,7 @@ Wave 0 acceptance documented an encrypted VPS-local backup and isolated PostgreS
 
 ## G. Current Production Baseline
 
-The accepted Wave 0 post-DDL baseline is dated `2026-09-19T20:38:20.342Z`, SHA-256 `16617b86e7e442aa74228a0a1c08c7951f86bbd00d6197b4c415d776d594c006`. A **fresh** production read-only fingerprint, reconciliation result, Wave 1 table absence check, role/flag proof, and drift analysis against that snapshot are pending. Normal clinic activity can change counts between snapshots; no historical exception has been repaired or imported here. The lack of a fresh baseline blocks the gate.
+The accepted Wave 0 post-DDL baseline is dated `2026-09-19T20:38:20.342Z`, SHA-256 `16617b86e7e442aa74228a0a1c08c7951f86bbd00d6197b4c415d776d594c006`. A live, narrow check on 2026-09-20 showed `20260918190000_wave0_control_plane` as the latest applied Prisma migration and `canonical_event_headers` absent. This query used the DB administrative connection and is **not** the required read-only audit baseline. An attempt to run the existing Wave 0 audit baseline in the live PMS container failed before querying because the production image lacks `scripts/canonical/wave0-baseline.ts`. A **fresh** production read-only fingerprint, reconciliation result, full Wave 1 table-absence proof, role/flag proof, and drift analysis against the accepted snapshot are therefore pending. Normal clinic activity can change counts between snapshots; no historical exception has been repaired or imported here. The lack of a fresh baseline blocks the gate.
 
 ## H. W1-PROD-DDL-GATE
 
