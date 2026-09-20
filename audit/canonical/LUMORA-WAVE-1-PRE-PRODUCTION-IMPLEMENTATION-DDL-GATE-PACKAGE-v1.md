@@ -89,3 +89,14 @@ The accepted Wave 0 post-DDL baseline is dated `2026-09-19T20:38:20.342Z`, SHA-2
 **Preliminary same-major restore, not from R2.** The VPS-local encrypted artifact named above restored into a fresh isolated PostgreSQL `16.14` container with no production application network or production volume. The full Wave 1 verifier compared it with the backup-aligned read-only source baseline: schema, migration history, table counts, safe identity digests, frozen reconciliation results, and pre-DDL Wave 1 table absence all **PASS**. Ignored runtime verification artifact SHA-256: `d5812142e21259b05bcf60730b4ff2bf5cbb4f403bbad4f14b2b01982cc37850`. The disposable container/network/volume were removed after verification. This rehearsal does **not** satisfy the required R2-retrieved restore lineage.
 
 The dedicated private R2 bucket, actual Bucket Lock retain-until, scoped credentials, encrypted upload hash/metadata, R2 retrieval, integrity/decryption/archive proof, and **R2-derived** isolated PostgreSQL 16 restore/five-way comparison are pending. A gate rerun with the evidence file set these two inputs false and returned `BLOCKED` specifically for `independentRecovery` and `restorePassed`; all other current checks evaluated true. Thus **W1-PROD-DDL-GATE remains BLOCKED**; no production Wave 1 DDL or deployment is authorized.
+
+## J. Approved R2 Configuration, Pending Execution
+
+The owner named the dedicated bucket `lumora-canonical-recovery`, with the `apac` location hint, private access, and no public domain. The Cloudflare Account ID in the instruction is a placeholder, not an actual ID. No R2 credentials, bucket lock state, upload, or retrieval has been observed; this section records **approved intent**, not completed R2 evidence. Cloudflare's location hint is not a strict legal data-residency guarantee.
+
+| Intended object | Non-PHI key | Source encrypted SHA-256 | Minimum lock |
+| --- | --- | --- | --- |
+| Accepted Wave 0 reference | `postgresql/accepted-wave0/lumora-wave0-20260918T210653Z.dump.age` | `b5bc2e3d6989a5609d1245d4879d5e1aa87f6525c5a645930707044471bec42f` | Through at least `2027-09-19` (owner acceptance `2026-09-19`) |
+| Routine current recovery | `postgresql/routine-wave1/lumora-wave0-20260920T084128Z.dump.age` | `96e46aa24f73528dbe96716545e3846e601db07ebd1fe6cded2c492ab37f355d` | At least 180 days from R2 upload |
+
+Both source hashes were rechecked against the root-restricted VPS files. Before either upload, verify the private Standard bucket and appropriate Bucket Lock rules for **both** prefixes. The actual upload timestamp, object metadata, lock rule, calculated retain-until time, retrieval checksum, and R2-derived restore lineage must be appended only after direct verification. The private age identity and R2 secrets remain outside Git and public evidence. The gate remains BLOCKED.
