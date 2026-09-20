@@ -1,0 +1,833 @@
+{
+  "counts": {
+    "canonical_aggregate_sequences": 0,
+    "canonical_approved_exception_versions": 0,
+    "canonical_cutover_current_states": 0,
+    "canonical_cutover_registry": 0,
+    "canonical_cutover_transition_events": 0,
+    "canonical_data_quality_exceptions": 0,
+    "canonical_event_corrections": 0,
+    "canonical_event_headers": 0,
+    "canonical_exception_evidence": 0,
+    "canonical_exception_lifecycle_events": 0,
+    "canonical_policy_current_states": 0,
+    "canonical_policy_transition_events": 0,
+    "canonical_policy_versions": 0,
+    "canonical_reconciliation_rule_versions": 0,
+    "canonical_reconciliation_run_events": 0,
+    "canonical_reconciliation_runs": 0,
+    "canonical_source_record_references": 0
+  },
+  "expected": "empty",
+  "kind": "lumora-wave1-disposable-table-proof-v1",
+  "objects": {
+    "auditRolePresent": true,
+    "constraints": [
+      {
+        "definition": "PRIMARY KEY (\"aggregateType\", \"aggregateId\")",
+        "kind": "p",
+        "name": "canonical_aggregate_sequences_pkey",
+        "table": "canonical_aggregate_sequences"
+      },
+      {
+        "definition": "CHECK ((\"nextSequence\" > 0))",
+        "kind": "c",
+        "name": "w1_sequence_positive_check",
+        "table": "canonical_aggregate_sequences"
+      },
+      {
+        "definition": "PRIMARY KEY (\"approvalId\")",
+        "kind": "p",
+        "name": "canonical_approved_exception_versions_pkey",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "definition": "FOREIGN KEY (\"exceptionId\") REFERENCES canonical_data_quality_exceptions(\"exceptionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_approval_exception_fk",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "definition": "CHECK (((\"effectiveTo\" > \"effectiveFrom\") AND (\"reviewAt\" >= \"effectiveFrom\")))",
+        "kind": "c",
+        "name": "w1_approval_window_check",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "definition": "PRIMARY KEY (\"cutoverId\")",
+        "kind": "p",
+        "name": "canonical_cutover_current_states_pkey",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "definition": "FOREIGN KEY (\"lastTransitionId\") REFERENCES canonical_cutover_transition_events(\"transitionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_cutover_current_event_fk",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "definition": "FOREIGN KEY (\"cutoverId\") REFERENCES canonical_cutover_registry(\"cutoverId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_cutover_current_registry_fk",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "definition": "PRIMARY KEY (\"cutoverId\")",
+        "kind": "p",
+        "name": "canonical_cutover_registry_pkey",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_cutover_batch_fk",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "definition": "CHECK ((cardinality(\"migrationClasses\") > 0))",
+        "kind": "c",
+        "name": "w1_cutover_classes_check",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "definition": "PRIMARY KEY (\"transitionId\")",
+        "kind": "p",
+        "name": "canonical_cutover_transition_events_pkey",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "CHECK (((\"newStatus\" = 'ACTIVE'::\"CanonicalGovernanceStatus\") = ((\"activatedBy\" IS NOT NULL) AND (\"activatedAt\" IS NOT NULL))))",
+        "kind": "c",
+        "name": "w1_cutover_activation_check",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "FOREIGN KEY (\"cutoverId\") REFERENCES canonical_cutover_registry(\"cutoverId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_cutover_transition_registry_fk",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "PRIMARY KEY (\"exceptionId\")",
+        "kind": "p",
+        "name": "canonical_data_quality_exceptions_pkey",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_exception_batch_fk",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "definition": "FOREIGN KEY (\"ruleVersionId\") REFERENCES canonical_reconciliation_rule_versions(\"ruleVersionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_exception_rule_fk",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "definition": "PRIMARY KEY (\"correctionId\")",
+        "kind": "p",
+        "name": "canonical_event_corrections_pkey",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_correction_batch_fk",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CHECK ((\"originalEventId\" <> \"replacementEventId\"))",
+        "kind": "c",
+        "name": "w1_correction_distinct_check",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "FOREIGN KEY (\"originalEventId\") REFERENCES canonical_event_headers(\"eventId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_correction_original_fk",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "FOREIGN KEY (\"replacementEventId\") REFERENCES canonical_event_headers(\"eventId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_correction_replacement_fk",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "PRIMARY KEY (\"eventId\")",
+        "kind": "p",
+        "name": "canonical_event_headers_pkey",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_header_batch_fk",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CHECK (((\"migrationClass\" = 'M4'::\"CanonicalMigrationClass\") OR ((\"migrationBatchId\" IS NOT NULL) AND (\"sourceProvenanceKey\" IS NOT NULL))))",
+        "kind": "c",
+        "name": "w1_header_import_check",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "FOREIGN KEY (\"policyVersionId\") REFERENCES canonical_policy_versions(\"policyVersionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_header_policy_fk",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CHECK (((\"aggregateSequence\" > 0) AND (length(\"contentHash\") > 0)))",
+        "kind": "c",
+        "name": "w1_header_sequence_check",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "PRIMARY KEY (\"evidenceId\")",
+        "kind": "p",
+        "name": "canonical_exception_evidence_pkey",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "definition": "FOREIGN KEY (\"exceptionId\") REFERENCES canonical_data_quality_exceptions(\"exceptionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_evidence_exception_fk",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "definition": "FOREIGN KEY (\"reconciliationRunId\") REFERENCES canonical_reconciliation_runs(\"reconciliationRunId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_evidence_run_fk",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "definition": "PRIMARY KEY (\"eventId\")",
+        "kind": "p",
+        "name": "canonical_exception_lifecycle_events_pkey",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "FOREIGN KEY (\"correctionId\") REFERENCES canonical_event_corrections(\"correctionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_exception_event_correction_fk",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "FOREIGN KEY (\"exceptionId\") REFERENCES canonical_data_quality_exceptions(\"exceptionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_exception_event_exception_fk",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "PRIMARY KEY (\"policyVersionId\")",
+        "kind": "p",
+        "name": "canonical_policy_current_states_pkey",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "definition": "FOREIGN KEY (\"lastTransitionId\") REFERENCES canonical_policy_transition_events(\"transitionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_policy_current_event_fk",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "definition": "FOREIGN KEY (\"policyVersionId\") REFERENCES canonical_policy_versions(\"policyVersionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_policy_current_version_fk",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "definition": "PRIMARY KEY (\"transitionId\")",
+        "kind": "p",
+        "name": "canonical_policy_transition_events_pkey",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "definition": "FOREIGN KEY (\"policyVersionId\") REFERENCES canonical_policy_versions(\"policyVersionId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_policy_transition_version_fk",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "definition": "PRIMARY KEY (\"policyVersionId\")",
+        "kind": "p",
+        "name": "canonical_policy_versions_pkey",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "CHECK ((version > 0))",
+        "kind": "c",
+        "name": "w1_policy_version_check",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "CHECK (((\"effectiveTo\" IS NULL) OR (\"effectiveTo\" > \"effectiveFrom\")))",
+        "kind": "c",
+        "name": "w1_policy_window_check",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "PRIMARY KEY (\"ruleVersionId\")",
+        "kind": "p",
+        "name": "canonical_reconciliation_rule_versions_pkey",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "definition": "CHECK (((\"ruleCode\" <> 'MISSING_DATA'::text) AND (length(\"ruleCode\") > 0)))",
+        "kind": "c",
+        "name": "w1_rule_named_check",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "definition": "CHECK (((\"effectiveTo\" IS NULL) OR (\"effectiveTo\" > \"effectiveFrom\")))",
+        "kind": "c",
+        "name": "w1_rule_window_check",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "definition": "PRIMARY KEY (\"eventId\")",
+        "kind": "p",
+        "name": "canonical_reconciliation_run_events_pkey",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_run_event_batch_fk",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "FOREIGN KEY (\"reconciliationRunId\") REFERENCES canonical_reconciliation_runs(\"reconciliationRunId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_run_event_run_fk",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "CHECK (((\"newStatus\" <> ALL (ARRAY['FAILED'::\"CanonicalReconciliationStatus\", 'BLOCKED'::\"CanonicalReconciliationStatus\"])) OR (\"failureCode\" IS NOT NULL)))",
+        "kind": "c",
+        "name": "w1_run_failure_code_check",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "PRIMARY KEY (\"reconciliationRunId\")",
+        "kind": "p",
+        "name": "canonical_reconciliation_runs_pkey",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "CHECK (((attempt > 0) AND ((\"retryOfRunId\" IS NULL) OR (\"retryOfRunId\" <> \"reconciliationRunId\"))))",
+        "kind": "c",
+        "name": "w1_run_attempt_check",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_run_batch_fk",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "kind": "t",
+        "name": "w1_run_initial_event",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "FOREIGN KEY (\"retryOfRunId\") REFERENCES canonical_reconciliation_runs(\"reconciliationRunId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_run_retry_fk",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "PRIMARY KEY (\"referenceId\")",
+        "kind": "p",
+        "name": "canonical_source_record_references_pkey",
+        "table": "canonical_source_record_references"
+      },
+      {
+        "definition": "FOREIGN KEY (\"migrationBatchId\") REFERENCES canonical_migration_batches(id) ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_source_batch_fk",
+        "table": "canonical_source_record_references"
+      },
+      {
+        "definition": "FOREIGN KEY (\"canonicalEventId\") REFERENCES canonical_event_headers(\"eventId\") ON DELETE RESTRICT",
+        "kind": "f",
+        "name": "w1_source_header_fk",
+        "table": "canonical_source_record_references"
+      },
+      {
+        "definition": "CHECK (((length(\"sourceKey\") > 0) AND (length(\"sourceChecksum\") > 0) AND (length(\"sourceProvenanceKey\") > 0) AND (\"migrationClass\" <> 'M4'::\"CanonicalMigrationClass\")))",
+        "kind": "c",
+        "name": "w1_source_nonempty_check",
+        "table": "canonical_source_record_references"
+      }
+    ],
+    "enums": [
+      {
+        "name": "CanonicalAttributionState"
+      },
+      {
+        "name": "CanonicalCorrectionKind"
+      },
+      {
+        "name": "CanonicalExceptionStatus"
+      },
+      {
+        "name": "CanonicalGovernanceStatus"
+      },
+      {
+        "name": "CanonicalMigrationClass"
+      },
+      {
+        "name": "CanonicalReconciliationStatus"
+      }
+    ],
+    "functions": [
+      {
+        "name": "canonical_w1_cutover_transition"
+      },
+      {
+        "name": "canonical_w1_exception_transition"
+      },
+      {
+        "name": "canonical_w1_policy_transition"
+      },
+      {
+        "name": "canonical_w1_reject_mutation"
+      },
+      {
+        "name": "canonical_w1_require_initial_run_event"
+      },
+      {
+        "name": "canonical_w1_run_transition"
+      },
+      {
+        "name": "canonical_w1_validate_correction"
+      }
+    ],
+    "grants": [
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_aggregate_sequences"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_event_headers"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "grantee": "lumora_audit_ro",
+        "privilege": "SELECT",
+        "table": "canonical_source_record_references"
+      }
+    ],
+    "indexes": [
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_aggregate_sequences_pkey ON public.canonical_aggregate_sequences USING btree (\"aggregateType\", \"aggregateId\")",
+        "name": "canonical_aggregate_sequences_pkey",
+        "table": "canonical_aggregate_sequences"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_approved_exception_versions_exceptionId_version_key\" ON public.canonical_approved_exception_versions USING btree (\"exceptionId\", version)",
+        "name": "canonical_approved_exception_versions_exceptionId_version_key",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_approved_exception_versions_pkey ON public.canonical_approved_exception_versions USING btree (\"approvalId\")",
+        "name": "canonical_approved_exception_versions_pkey",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_cutover_current_states_domain_scopeType_scopeKey__idx\" ON public.canonical_cutover_current_states USING btree (domain, \"scopeType\", \"scopeKey\", \"currentStatus\")",
+        "name": "canonical_cutover_current_states_domain_scopeType_scopeKey__idx",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_cutover_current_states_pkey ON public.canonical_cutover_current_states USING btree (\"cutoverId\")",
+        "name": "canonical_cutover_current_states_pkey",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX w1_cutover_one_active_scope_idx ON public.canonical_cutover_current_states USING btree (domain, \"scopeType\", \"scopeKey\") WHERE (\"currentStatus\" = 'ACTIVE'::\"CanonicalGovernanceStatus\")",
+        "name": "w1_cutover_one_active_scope_idx",
+        "table": "canonical_cutover_current_states"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_cutover_registry_domain_scopeType_scopeKey_cutove_idx\" ON public.canonical_cutover_registry USING btree (domain, \"scopeType\", \"scopeKey\", \"cutoverAt\")",
+        "name": "canonical_cutover_registry_domain_scopeType_scopeKey_cutove_idx",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_cutover_registry_pkey ON public.canonical_cutover_registry USING btree (\"cutoverId\")",
+        "name": "canonical_cutover_registry_pkey",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_cutover_transition_events_cutoverId_recordedAt_idx\" ON public.canonical_cutover_transition_events USING btree (\"cutoverId\", \"recordedAt\")",
+        "name": "canonical_cutover_transition_events_cutoverId_recordedAt_idx",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_cutover_transition_events_pkey ON public.canonical_cutover_transition_events USING btree (\"transitionId\")",
+        "name": "canonical_cutover_transition_events_pkey",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_data_quality_exceptions_ownerQueue_currentStatus_idx\" ON public.canonical_data_quality_exceptions USING btree (\"ownerQueue\", \"currentStatus\")",
+        "name": "canonical_data_quality_exceptions_ownerQueue_currentStatus_idx",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_data_quality_exceptions_pkey ON public.canonical_data_quality_exceptions USING btree (\"exceptionId\")",
+        "name": "canonical_data_quality_exceptions_pkey",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_data_quality_exceptions_ruleVersionId_sourceSyste_key\" ON public.canonical_data_quality_exceptions USING btree (\"ruleVersionId\", \"sourceSystem\", \"sourceEntity\", \"sourceKey\", \"scopeKey\", \"episodeKey\")",
+        "name": "canonical_data_quality_exceptions_ruleVersionId_sourceSyste_key",
+        "table": "canonical_data_quality_exceptions"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_event_corrections_originalEventId_recordedAt_idx\" ON public.canonical_event_corrections USING btree (\"originalEventId\", \"recordedAt\")",
+        "name": "canonical_event_corrections_originalEventId_recordedAt_idx",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_event_corrections_pkey ON public.canonical_event_corrections USING btree (\"correctionId\")",
+        "name": "canonical_event_corrections_pkey",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_event_corrections_replacementEventId_key\" ON public.canonical_event_corrections USING btree (\"replacementEventId\")",
+        "name": "canonical_event_corrections_replacementEventId_key",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX w1_correction_one_successor_idx ON public.canonical_event_corrections USING btree (\"originalEventId\")",
+        "name": "w1_correction_one_successor_idx",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_event_headers_aggregateType_aggregateId_aggregate_key\" ON public.canonical_event_headers USING btree (\"aggregateType\", \"aggregateId\", \"aggregateSequence\")",
+        "name": "canonical_event_headers_aggregateType_aggregateId_aggregate_key",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_event_headers_domain_eventType_idempotencyKey_key\" ON public.canonical_event_headers USING btree (domain, \"eventType\", \"idempotencyKey\")",
+        "name": "canonical_event_headers_domain_eventType_idempotencyKey_key",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_event_headers_domain_eventType_occurredAt_idx\" ON public.canonical_event_headers USING btree (domain, \"eventType\", \"occurredAt\")",
+        "name": "canonical_event_headers_domain_eventType_occurredAt_idx",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_event_headers_pkey ON public.canonical_event_headers USING btree (\"eventId\")",
+        "name": "canonical_event_headers_pkey",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_exception_evidence_exceptionId_reconciliationRunI_idx\" ON public.canonical_exception_evidence USING btree (\"exceptionId\", \"reconciliationRunId\")",
+        "name": "canonical_exception_evidence_exceptionId_reconciliationRunI_idx",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_exception_evidence_pkey ON public.canonical_exception_evidence USING btree (\"evidenceId\")",
+        "name": "canonical_exception_evidence_pkey",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_exception_lifecycle_events_exceptionId_recordedAt_idx\" ON public.canonical_exception_lifecycle_events USING btree (\"exceptionId\", \"recordedAt\")",
+        "name": "canonical_exception_lifecycle_events_exceptionId_recordedAt_idx",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_exception_lifecycle_events_pkey ON public.canonical_exception_lifecycle_events USING btree (\"eventId\")",
+        "name": "canonical_exception_lifecycle_events_pkey",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_policy_current_states_family_scopeType_scopeKey_c_idx\" ON public.canonical_policy_current_states USING btree (family, \"scopeType\", \"scopeKey\", \"currentStatus\")",
+        "name": "canonical_policy_current_states_family_scopeType_scopeKey_c_idx",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_policy_current_states_pkey ON public.canonical_policy_current_states USING btree (\"policyVersionId\")",
+        "name": "canonical_policy_current_states_pkey",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX w1_policy_one_active_scope_idx ON public.canonical_policy_current_states USING btree (family, \"scopeType\", \"scopeKey\") WHERE (\"currentStatus\" = 'ACTIVE'::\"CanonicalGovernanceStatus\")",
+        "name": "w1_policy_one_active_scope_idx",
+        "table": "canonical_policy_current_states"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_policy_transition_events_pkey ON public.canonical_policy_transition_events USING btree (\"transitionId\")",
+        "name": "canonical_policy_transition_events_pkey",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_policy_transition_events_policyVersionId_recorded_idx\" ON public.canonical_policy_transition_events USING btree (\"policyVersionId\", \"recordedAt\")",
+        "name": "canonical_policy_transition_events_policyVersionId_recorded_idx",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_policy_versions_family_scopeType_scopeKey_effecti_idx\" ON public.canonical_policy_versions USING btree (family, \"scopeType\", \"scopeKey\", \"effectiveFrom\")",
+        "name": "canonical_policy_versions_family_scopeType_scopeKey_effecti_idx",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_policy_versions_family_scopeType_scopeKey_version_key\" ON public.canonical_policy_versions USING btree (family, \"scopeType\", \"scopeKey\", version)",
+        "name": "canonical_policy_versions_family_scopeType_scopeKey_version_key",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_policy_versions_pkey ON public.canonical_policy_versions USING btree (\"policyVersionId\")",
+        "name": "canonical_policy_versions_pkey",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_reconciliation_rule_versions_pkey ON public.canonical_reconciliation_rule_versions USING btree (\"ruleVersionId\")",
+        "name": "canonical_reconciliation_rule_versions_pkey",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_reconciliation_rule_versions_ruleCode_version_sco_key\" ON public.canonical_reconciliation_rule_versions USING btree (\"ruleCode\", version, \"scopeType\", \"scopeKey\")",
+        "name": "canonical_reconciliation_rule_versions_ruleCode_version_sco_key",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_reconciliation_run_events_pkey ON public.canonical_reconciliation_run_events USING btree (\"eventId\")",
+        "name": "canonical_reconciliation_run_events_pkey",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_reconciliation_run_events_reconciliationRunId_rec_idx\" ON public.canonical_reconciliation_run_events USING btree (\"reconciliationRunId\", \"recordedAt\", \"eventId\")",
+        "name": "canonical_reconciliation_run_events_reconciliationRunId_rec_idx",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_reconciliation_runs_currentStatus_startedAt_idx\" ON public.canonical_reconciliation_runs USING btree (\"currentStatus\", \"startedAt\")",
+        "name": "canonical_reconciliation_runs_currentStatus_startedAt_idx",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_reconciliation_runs_pkey ON public.canonical_reconciliation_runs USING btree (\"reconciliationRunId\")",
+        "name": "canonical_reconciliation_runs_pkey",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_reconciliation_runs_ruleSetHash_sourceSnapshotId__key\" ON public.canonical_reconciliation_runs USING btree (\"ruleSetHash\", \"sourceSnapshotId\", \"scopeType\", \"scopeKey\", \"runKey\", attempt)",
+        "name": "canonical_reconciliation_runs_ruleSetHash_sourceSnapshotId__key",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_source_record_references_canonicalEventId_sourceS_key\" ON public.canonical_source_record_references USING btree (\"canonicalEventId\", \"sourceSystem\", \"sourceEntity\", \"sourceKey\", \"sourceVersion\")",
+        "name": "canonical_source_record_references_canonicalEventId_sourceS_key",
+        "table": "canonical_source_record_references"
+      },
+      {
+        "definition": "CREATE INDEX \"canonical_source_record_references_migrationBatchId_idx\" ON public.canonical_source_record_references USING btree (\"migrationBatchId\")",
+        "name": "canonical_source_record_references_migrationBatchId_idx",
+        "table": "canonical_source_record_references"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX canonical_source_record_references_pkey ON public.canonical_source_record_references USING btree (\"referenceId\")",
+        "name": "canonical_source_record_references_pkey",
+        "table": "canonical_source_record_references"
+      },
+      {
+        "definition": "CREATE UNIQUE INDEX \"canonical_source_record_references_sourceProvenanceKey_key\" ON public.canonical_source_record_references USING btree (\"sourceProvenanceKey\")",
+        "name": "canonical_source_record_references_sourceProvenanceKey_key",
+        "table": "canonical_source_record_references"
+      }
+    ],
+    "triggers": [
+      {
+        "definition": "CREATE TRIGGER w1_approval_immutable BEFORE DELETE OR UPDATE ON public.canonical_approved_exception_versions FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_approval_immutable",
+        "table": "canonical_approved_exception_versions"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_cutover_immutable BEFORE DELETE OR UPDATE ON public.canonical_cutover_registry FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_cutover_immutable",
+        "table": "canonical_cutover_registry"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_cutover_event_immutable BEFORE DELETE OR UPDATE ON public.canonical_cutover_transition_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_cutover_event_immutable",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_cutover_transition AFTER INSERT ON public.canonical_cutover_transition_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_cutover_transition()",
+        "name": "w1_cutover_transition",
+        "table": "canonical_cutover_transition_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_correction_immutable BEFORE DELETE OR UPDATE ON public.canonical_event_corrections FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_correction_immutable",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_correction_validate BEFORE INSERT ON public.canonical_event_corrections FOR EACH ROW EXECUTE FUNCTION canonical_w1_validate_correction()",
+        "name": "w1_correction_validate",
+        "table": "canonical_event_corrections"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_header_immutable BEFORE DELETE OR UPDATE ON public.canonical_event_headers FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_header_immutable",
+        "table": "canonical_event_headers"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_evidence_immutable BEFORE DELETE OR UPDATE ON public.canonical_exception_evidence FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_evidence_immutable",
+        "table": "canonical_exception_evidence"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_exception_event_immutable BEFORE DELETE OR UPDATE ON public.canonical_exception_lifecycle_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_exception_event_immutable",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_exception_transition AFTER INSERT ON public.canonical_exception_lifecycle_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_exception_transition()",
+        "name": "w1_exception_transition",
+        "table": "canonical_exception_lifecycle_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_policy_event_immutable BEFORE DELETE OR UPDATE ON public.canonical_policy_transition_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_policy_event_immutable",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_policy_transition AFTER INSERT ON public.canonical_policy_transition_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_policy_transition()",
+        "name": "w1_policy_transition",
+        "table": "canonical_policy_transition_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_policy_version_immutable BEFORE DELETE OR UPDATE ON public.canonical_policy_versions FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_policy_version_immutable",
+        "table": "canonical_policy_versions"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_rule_immutable BEFORE DELETE OR UPDATE ON public.canonical_reconciliation_rule_versions FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_rule_immutable",
+        "table": "canonical_reconciliation_rule_versions"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_run_event_immutable BEFORE DELETE OR UPDATE ON public.canonical_reconciliation_run_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_run_event_immutable",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_run_transition AFTER INSERT ON public.canonical_reconciliation_run_events FOR EACH ROW EXECUTE FUNCTION canonical_w1_run_transition()",
+        "name": "w1_run_transition",
+        "table": "canonical_reconciliation_run_events"
+      },
+      {
+        "definition": "CREATE CONSTRAINT TRIGGER w1_run_initial_event AFTER INSERT ON public.canonical_reconciliation_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION canonical_w1_require_initial_run_event()",
+        "name": "w1_run_initial_event",
+        "table": "canonical_reconciliation_runs"
+      },
+      {
+        "definition": "CREATE TRIGGER w1_source_immutable BEFORE DELETE OR UPDATE ON public.canonical_source_record_references FOR EACH ROW EXECUTE FUNCTION canonical_w1_reject_mutation()",
+        "name": "w1_source_immutable",
+        "table": "canonical_source_record_references"
+      }
+    ]
+  },
+  "tables": [
+    "canonical_aggregate_sequences",
+    "canonical_approved_exception_versions",
+    "canonical_cutover_current_states",
+    "canonical_cutover_registry",
+    "canonical_cutover_transition_events",
+    "canonical_data_quality_exceptions",
+    "canonical_event_corrections",
+    "canonical_event_headers",
+    "canonical_exception_evidence",
+    "canonical_exception_lifecycle_events",
+    "canonical_policy_current_states",
+    "canonical_policy_transition_events",
+    "canonical_policy_versions",
+    "canonical_reconciliation_rule_versions",
+    "canonical_reconciliation_run_events",
+    "canonical_reconciliation_runs",
+    "canonical_source_record_references"
+  ]
+}

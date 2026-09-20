@@ -22,6 +22,9 @@
     "wave0:flags-proof": "tsx scripts/canonical/wave0-flags-proof.ts",
     "wave0:prepare-gate": "tsx scripts/canonical/wave0-prepare-gate.ts",
     "wave0:prod-ddl-gate": "tsx scripts/canonical/wave0-prod-ddl-gate.ts",
+    "wave1:baseline": "tsx scripts/canonical/wave1-baseline.ts",
+    "wave1:restore-verify": "tsx scripts/canonical/wave1-restore-verify.ts",
+    "wave1:prod-ddl-gate": "tsx scripts/canonical/wave1-prod-ddl-gate.ts",
     "setup": "npm run db:up && sleep 5 && npm run db:push && npm run db:seed"
   },
   "dependencies": {

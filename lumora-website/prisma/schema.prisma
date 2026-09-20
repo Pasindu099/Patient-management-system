@@ -1391,3 +1391,333 @@ model CanonicalFeatureFlagVersion {
   @@index([flagId, effectiveAt, expiresAt])
   @@map("canonical_feature_flag_versions")
 }
+// Wave 1 infrastructure only. No production rows or domain event payloads.
+enum CanonicalMigrationClass {
+  M1
+  M2
+  M3
+  M4
+}
+
+enum CanonicalCorrectionKind {
+  CORRECTION
+  SUPERSESSION
+  REVERSAL
+  VOID
+}
+
+enum CanonicalGovernanceStatus {
+  READY
+  APPROVED
+  ACTIVE
+  PAUSED
+  RETIRED
+  REVOKED
+  SUPERSEDED
+}
+
+enum CanonicalReconciliationStatus {
+  PLANNED
+  RUNNING
+  COMPLETED
+  FAILED
+  BLOCKED
+}
+
+enum CanonicalExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  ASSIGNED
+  APPROVED
+  REMEDIATED
+  EXPIRED
+  CLOSED
+}
+
+enum CanonicalAttributionState {
+  ASSIGNED
+  UNASSIGNED
+  UNKNOWN
+  NOT_APPLICABLE
+}
+
+model CanonicalEventHeader {
+  eventId             String                  @id @db.Uuid
+  domain              String
+  eventType           String
+  aggregateType       String
+  aggregateId         String                  @db.Uuid
+  aggregateSequence   BigInt
+  idempotencyKey      String
+  contentHash         String
+  occurredAt          DateTime                @db.Timestamptz(3)
+  recordedAt          DateTime                @default(now()) @db.Timestamptz(3)
+  actorType           String
+  actorId             String
+  policyVersionId     String?                 @db.Uuid
+  migrationClass      CanonicalMigrationClass
+  migrationBatchId    String?                 @db.Uuid
+  sourceProvenanceKey String?
+
+  @@unique([aggregateType, aggregateId, aggregateSequence])
+  @@unique([domain, eventType, idempotencyKey])
+  @@index([domain, eventType, occurredAt])
+  @@map("canonical_event_headers")
+}
+
+model CanonicalAggregateSequence {
+  aggregateType String
+  aggregateId   String @db.Uuid
+  nextSequence  BigInt
+
+  @@id([aggregateType, aggregateId])
+  @@map("canonical_aggregate_sequences")
+}
+
+model CanonicalEventCorrection {
+  correctionId       String                  @id @db.Uuid
+  originalEventId    String                  @db.Uuid
+  replacementEventId String                  @db.Uuid
+  kind               CanonicalCorrectionKind
+  reasonCode         String
+  evidenceRef        String
+  approverType       String
+  approverId         String
+  occurredAt         DateTime                @db.Timestamptz(3)
+  recordedAt         DateTime                @default(now()) @db.Timestamptz(3)
+  migrationBatchId   String?                 @db.Uuid
+
+  @@unique([replacementEventId])
+  @@index([originalEventId, recordedAt])
+  @@map("canonical_event_corrections")
+}
+
+model CanonicalSourceRecordReference {
+  referenceId         String                  @id @db.Uuid
+  canonicalEventId    String                  @db.Uuid
+  sourceSystem        String
+  sourceEntity        String
+  sourceKey           String
+  sourceVersion       String                  @default("")
+  sourceChecksum      String
+  sourceProvenanceKey String                  @unique
+  observedAt          DateTime                @db.Timestamptz(3)
+  importedAt          DateTime                @default(now()) @db.Timestamptz(3)
+  migrationClass      CanonicalMigrationClass
+  migrationBatchId    String                  @db.Uuid
+
+  @@unique([canonicalEventId, sourceSystem, sourceEntity, sourceKey, sourceVersion])
+  @@index([migrationBatchId])
+  @@map("canonical_source_record_references")
+}
+
+model CanonicalPolicyVersion {
+  policyVersionId   String   @id @db.Uuid
+  family            String
+  scopeType         String
+  scopeKey          String
+  version           Int
+  effectiveFrom     DateTime @db.Timestamptz(3)
+  effectiveTo       DateTime? @db.Timestamptz(3)
+  approvalReference String
+  approvedBy        String
+  approvedAt        DateTime @db.Timestamptz(3)
+  definitionHash    String
+
+  @@unique([family, scopeType, scopeKey, version])
+  @@index([family, scopeType, scopeKey, effectiveFrom])
+  @@map("canonical_policy_versions")
+}
+
+model CanonicalPolicyTransitionEvent {
+  transitionId      String                     @id @db.Uuid
+  policyVersionId   String                     @db.Uuid
+  priorStatus       CanonicalGovernanceStatus?
+  newStatus         CanonicalGovernanceStatus
+  actorType         String
+  actorId           String
+  occurredAt        DateTime                   @db.Timestamptz(3)
+  recordedAt        DateTime                   @default(now()) @db.Timestamptz(3)
+  reasonCode        String
+  approvalReference String?
+
+  @@index([policyVersionId, recordedAt])
+  @@map("canonical_policy_transition_events")
+}
+
+model CanonicalPolicyCurrentState {
+  policyVersionId String                    @id @db.Uuid
+  family          String
+  scopeType       String
+  scopeKey        String
+  currentStatus   CanonicalGovernanceStatus
+  lastTransitionId String                   @db.Uuid
+
+  @@index([family, scopeType, scopeKey, currentStatus])
+  @@map("canonical_policy_current_states")
+}
+
+model CanonicalCutoverRegistry {
+  cutoverId            String                  @id @db.Uuid
+  domain               String
+  scopeType            String
+  scopeKey             String
+  cutoverAt            DateTime                @db.Timestamptz(3)
+  migrationClasses     CanonicalMigrationClass[]
+  approvalReference    String
+  evidenceManifestHash String
+  migrationBatchId     String?                 @db.Uuid
+
+  @@index([domain, scopeType, scopeKey, cutoverAt])
+  @@map("canonical_cutover_registry")
+}
+
+model CanonicalCutoverTransitionEvent {
+  transitionId      String                     @id @db.Uuid
+  cutoverId         String                     @db.Uuid
+  priorStatus       CanonicalGovernanceStatus?
+  newStatus         CanonicalGovernanceStatus
+  actorType         String
+  actorId           String
+  activatedBy       String?
+  activatedAt       DateTime?                  @db.Timestamptz(3)
+  occurredAt        DateTime                   @db.Timestamptz(3)
+  recordedAt        DateTime                   @default(now()) @db.Timestamptz(3)
+  reasonCode        String
+  approvalReference String?
+
+  @@index([cutoverId, recordedAt])
+  @@map("canonical_cutover_transition_events")
+}
+
+model CanonicalCutoverCurrentState {
+  cutoverId        String                    @id @db.Uuid
+  domain           String
+  scopeType        String
+  scopeKey         String
+  currentStatus    CanonicalGovernanceStatus
+  lastTransitionId String                    @db.Uuid
+
+  @@index([domain, scopeType, scopeKey, currentStatus])
+  @@map("canonical_cutover_current_states")
+}
+
+model CanonicalReconciliationRuleVersion {
+  ruleVersionId     String   @id @db.Uuid
+  ruleCode          String
+  version           Int
+  domain            String
+  scopeType         String
+  scopeKey          String
+  definitionHash    String
+  severity          String
+  ownerQueue        String
+  effectiveFrom     DateTime @db.Timestamptz(3)
+  effectiveTo       DateTime? @db.Timestamptz(3)
+  approvalReference String
+
+  @@unique([ruleCode, version, scopeType, scopeKey])
+  @@map("canonical_reconciliation_rule_versions")
+}
+
+model CanonicalReconciliationRun {
+  reconciliationRunId String                         @id @db.Uuid
+  ruleSetHash         String
+  sourceSnapshotId    String
+  scopeType           String
+  scopeKey            String
+  runKey              String
+  attempt             Int
+  retryOfRunId        String?                        @db.Uuid
+  startedAt           DateTime?                      @db.Timestamptz(3)
+  completedAt         DateTime?                      @db.Timestamptz(3)
+  currentStatus       CanonicalReconciliationStatus?
+  migrationBatchId    String?                        @db.Uuid
+
+  @@unique([ruleSetHash, sourceSnapshotId, scopeType, scopeKey, runKey, attempt])
+  @@index([currentStatus, startedAt])
+  @@map("canonical_reconciliation_runs")
+}
+
+model CanonicalReconciliationRunEvent {
+  eventId             String                        @id @db.Uuid
+  reconciliationRunId String                        @db.Uuid
+  priorStatus         CanonicalReconciliationStatus?
+  newStatus           CanonicalReconciliationStatus
+  occurredAt          DateTime                      @db.Timestamptz(3)
+  recordedAt          DateTime                      @default(now()) @db.Timestamptz(3)
+  actorType           String
+  actorId             String
+  reasonCode          String?
+  failureCode         String?
+  evidenceManifestHash String?
+  migrationBatchId    String?                       @db.Uuid
+
+  @@index([reconciliationRunId, recordedAt, eventId])
+  @@map("canonical_reconciliation_run_events")
+}
+
+model CanonicalDataQualityException {
+  exceptionId      String                   @id @db.Uuid
+  ruleVersionId    String                   @db.Uuid
+  sourceSystem     String
+  sourceEntity     String
+  sourceKey        String
+  scopeKey         String
+  episodeKey       String
+  detectedAt       DateTime                 @db.Timestamptz(3)
+  severity         String
+  impactCode       String
+  ownerQueue       String
+  currentStatus    CanonicalExceptionStatus?
+  migrationBatchId String?                  @db.Uuid
+
+  @@unique([ruleVersionId, sourceSystem, sourceEntity, sourceKey, scopeKey, episodeKey])
+  @@index([ownerQueue, currentStatus])
+  @@map("canonical_data_quality_exceptions")
+}
+
+model CanonicalExceptionLifecycleEvent {
+  eventId       String                    @id @db.Uuid
+  exceptionId   String                    @db.Uuid
+  priorStatus   CanonicalExceptionStatus?
+  newStatus     CanonicalExceptionStatus
+  actorType     String
+  actorId       String
+  occurredAt    DateTime                  @db.Timestamptz(3)
+  recordedAt    DateTime                  @default(now()) @db.Timestamptz(3)
+  reasonCode    String
+  correctionId  String?                   @db.Uuid
+
+  @@index([exceptionId, recordedAt])
+  @@map("canonical_exception_lifecycle_events")
+}
+
+model CanonicalExceptionEvidence {
+  evidenceId         String   @id @db.Uuid
+  exceptionId        String   @db.Uuid
+  reconciliationRunId String? @db.Uuid
+  evidenceType       String
+  evidenceHash       String
+  manifestRef        String
+  observedAt         DateTime @db.Timestamptz(3)
+  recordedAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([exceptionId, reconciliationRunId])
+  @@map("canonical_exception_evidence")
+}
+
+model CanonicalApprovedExceptionVersion {
+  approvalId        String   @id @db.Uuid
+  exceptionId       String   @db.Uuid
+  version           Int
+  approvalReference String
+  approvedBy        String
+  effectiveFrom     DateTime @db.Timestamptz(3)
+  effectiveTo       DateTime @db.Timestamptz(3)
+  reviewAt          DateTime @db.Timestamptz(3)
+  permittedImpact   String
+
+  @@unique([exceptionId, version])
+  @@map("canonical_approved_exception_versions")
+}

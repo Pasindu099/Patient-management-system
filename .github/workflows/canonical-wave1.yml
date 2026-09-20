@@ -1,0 +1,84 @@
+name: Canonical Wave 1 Pre-Production
+
+on:
+  pull_request:
+  push:
+    branches: [wave0-implementation, wave1-implementation]
+
+jobs:
+  wave1:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wave1
+          POSTGRES_PASSWORD: wave1-ci-only
+          POSTGRES_DB: wave1
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wave1 -d wave1"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://wave1:wave1-ci-only@localhost:5432/wave1
+      WAVE1_TEST_DATABASE_URL: postgresql://wave1:wave1-ci-only@localhost:5432/wave1
+      NEXTAUTH_SECRET: wave1-ci-only-secret
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3001
+      CANONICAL_MIGRATION_MODE: disabled
+      CANONICAL_WRITE_CAPTURE_ALLOWLIST: ""
+      CANONICAL_SHADOW_READ_ALLOWLIST: ""
+      CANONICAL_METRIC_READ_ALLOWLIST: ""
+      CANONICAL_DOMAIN_CUTOVER_ALLOWLIST: ""
+      CANONICAL_ALERT_TYPE_ALLOWLIST: ""
+      CANONICAL_UI_SURFACE_ALLOWLIST: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            dental-pms/package-lock.json
+            lumora-website/package-lock.json
+      - name: Install PMS dependencies
+        working-directory: dental-pms
+        run: npm ci
+      - name: Validate and generate PMS schema
+        working-directory: dental-pms
+        run: npx prisma validate && npx prisma generate
+      - name: Review additive migration SQL
+        working-directory: dental-pms
+        run: npm run wave1:prod-ddl-gate -- --static-only
+      - name: Authorize only this disposable CI database for Wave 1 DDL
+        run: |
+          psql "$DATABASE_URL" -c "CREATE ROLE lumora_audit_ro NOLOGIN"
+          psql "$DATABASE_URL" -c "REVOKE ALL ON DATABASE wave1 FROM PUBLIC"
+          psql "$DATABASE_URL" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC"
+          psql "$DATABASE_URL" -c "ALTER DATABASE wave1 SET lumora.wave1_ddl_authorization = 'preproduction-disposable'"
+      - name: Apply all migrations to disposable database
+        working-directory: dental-pms
+        run: npx prisma migrate deploy
+      - name: Prove exact Wave 1 table scope and zero rows before fixtures
+        working-directory: dental-pms
+        run: npm run wave1:baseline -- post
+      - name: Repeat migration deployment
+        working-directory: dental-pms
+        run: npx prisma migrate deploy
+      - name: Real-database canonical tests
+        working-directory: dental-pms
+        run: npm run test:canonical
+      - name: PMS type check and build
+        working-directory: dental-pms
+        run: npx tsc --noEmit && npm run build
+      - name: Install website dependencies
+        working-directory: lumora-website
+        run: npm ci
+      - name: Website remains schema-mirror-only
+        run: |
+          ! grep -R -E 'prisma[[:space:]]+migrate|migrate[[:space:]]+deploy' lumora-website/package.json lumora-website/Dockerfile
+          ! grep -R -E 'canonicalEventHeader|canonicalReconciliationRun|canonicalPolicyVersion' lumora-website/src
+      - name: Validate, generate, type check and build website
+        working-directory: lumora-website
+        run: npx prisma validate && npx prisma generate && npx tsc --noEmit && npm run build

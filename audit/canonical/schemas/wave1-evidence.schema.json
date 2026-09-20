@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lumora Wave 1 pre-production DDL gate evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["wave0Accepted", "namedApprovers", "implementationApprovalReference", "offVps", "currentBackup", "restorePassed", "freshDbPassed", "zeroRowsPassed", "objectManifestPassed", "ciPassed", "concurrencyPassed", "securityPassed", "baselineCaptured", "flagsOff", "noWriterRoute"],
+  "properties": {
+    "wave0Accepted": { "type": "boolean" },
+    "namedApprovers": { "type": "boolean" },
+    "implementationApprovalReference": { "type": "string", "minLength": 1 },
+    "offVps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactSha256", "destination", "retention", "access", "encryption", "keySeparation", "retrievalVerified", "restoreLineage"],
+      "properties": {
+        "artifactSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "destination": { "type": "string", "minLength": 1 },
+        "retention": { "type": "string", "minLength": 1 },
+        "access": { "type": "string", "minLength": 1 },
+        "encryption": { "type": "string", "minLength": 1 },
+        "keySeparation": { "type": "string", "minLength": 1 },
+        "retrievalVerified": { "const": true },
+        "restoreLineage": { "type": "string", "minLength": 1 }
+      }
+    },
+    "currentBackup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactSha256", "provenance"],
+      "properties": {
+        "artifactSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "provenance": { "type": "string", "minLength": 1 }
+      }
+    },
+    "restorePassed": { "type": "boolean" },
+    "freshDbPassed": { "type": "boolean" },
+    "zeroRowsPassed": { "type": "boolean" },
+    "objectManifestPassed": { "type": "boolean" },
+    "ciPassed": { "type": "boolean" },
+    "concurrencyPassed": { "type": "boolean" },
+    "securityPassed": { "type": "boolean" },
+    "baselineCaptured": { "type": "boolean" },
+    "flagsOff": { "type": "boolean" },
+    "noWriterRoute": { "type": "boolean" }
+  }
+}
