@@ -9,8 +9,21 @@ describe("Wave 1 event identity", () => {
     expect(first).not.toBe(newEventId());
     expect(first).toMatch(/^[0-9a-f-]{36}$/);
     const hash = eventContentHash({ amount: 123 });
+    expect(hash).toMatch(/^sha256:v1:[0-9a-f]{64}$/);
     expect(assertIdempotentReplay({ eventId: first, contentHash: hash }, hash)).toBe(first);
     expect(() => assertIdempotentReplay({ eventId: first, contentHash: hash }, eventContentHash({ amount: 124 }))).toThrow();
+  });
+
+  it("hashes versioned semantic content deterministically and excludes generated fields", () => {
+    expect(eventContentHash({ a: 1, nested: { x: true, y: [2, 3] } })).toBe(
+      eventContentHash({ nested: { y: [2, 3], x: true }, a: 1 }),
+    );
+    expect(eventContentHash({ occurredAt: new Date("2026-09-20T00:00:00Z") })).toBe(
+      eventContentHash({ occurredAt: "2026-09-20T00:00:00.000Z" }),
+    );
+    expect(() => eventContentHash({ eventId: randomUUID(), amount: 1 })).toThrow(/not semantic/);
+    expect(() => eventContentHash({ nested: { recordedAt: new Date() } })).toThrow(/not semantic/);
+    expect(() => eventContentHash({ amount: undefined })).toThrow(/JSON-compatible/);
   });
 
   it("holds Colombo half-open day boundary independently of UTC recording", () => {

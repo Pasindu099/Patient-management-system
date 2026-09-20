@@ -119,7 +119,7 @@ async function main() {
       const artifact = await writeEvidenceArtifact(path.resolve(process.cwd(), "../audit/canonical/runtime/wave1"),
         "wave1-local-table-proof.json", { kind: "lumora-wave1-disposable-table-proof-v1", ...result, objects });
       console.log(JSON.stringify({ ...result, objectCounts: objects && Object.fromEntries(
-        Object.entries(objects).filter(([, values]) => Array.isArray(values)).map(([key, values]) => [key, values.length])), evidence: artifact }));
+        Object.entries(objects).flatMap(([key, values]) => Array.isArray(values) ? [[key, values.length]] : [])), evidence: artifact }));
     } finally {
       await client.query("ROLLBACK");
       await client.end();

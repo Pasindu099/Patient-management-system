@@ -1,6 +1,6 @@
 # LUMORA Wave 1 Pre-Production Implementation & DDL Gate Package v1
 
-Status (2026-09-20): **WAVE 1 PRE-PRODUCTION IMPLEMENTATION INCOMPLETE / BLOCKED**. This package does not authorize production DDL, deployment, restart, canonical activation, or Wave 2. Technical approver: Pasindu Perera. Data approver: Dr Amitha Perera. Owner decision: pre-production implementation only, as recorded in the Wave 1 implementation instruction. The [frozen specification](../metrics-2026-09-17/LUMORA-MIGRATION-WAVE-1-IMPLEMENTATION-SPECIFICATION-v1.md) remains authoritative.
+Status (2026-09-20): **WAVE 1 PRE-PRODUCTION IMPLEMENTATION INCOMPLETE / BLOCKED**. This package does not authorize production DDL, deployment, restart, canonical activation, or Wave 2. Technical approver: Pasindu Perera. Data approver: Dr Amitha Perera. Owner decision: pre-production implementation only, as recorded in the Wave 1 implementation instruction. The [frozen specification](../metrics-2026-09-17/LUMORA-MIGRATION-WAVE-1-IMPLEMENTATION-SPECIFICATION-v1.md) remains authoritative. Sections F-H retain the initial blocked assessment; Section I appends later evidence without rewriting that history.
 
 ## A. Implementation Manifest
 
@@ -8,9 +8,9 @@ Status (2026-09-20): **WAVE 1 PRE-PRODUCTION IMPLEMENTATION INCOMPLETE / BLOCKED
 
 | Change ID | Planned | Implemented | Files | Deviation | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| W1-001 | Typed core Prisma models | Yes | `dental-pms/prisma/schema.prisma` | `contentHash` supporting field needs explicit owner review | E1, E4 |
-| W1-002 | Website schema mirror | Yes | `lumora-website/prisma/schema.prisma` | Same supporting field | E4 |
-| W1-003 | Additive migration, 17 tables | Yes, disposable only | `dental-pms/prisma/migrations/20260919213000_wave1_core_infrastructure/migration.sql` | Conditional audit grant; authorization guard; owner review pending | E1, E2 |
+| W1-001 | Typed core Prisma models | Yes | `dental-pms/prisma/schema.prisma` | `contentHash` approved by follow-up owner decision | E1, E4 |
+| W1-002 | Website schema mirror | Yes | `lumora-website/prisma/schema.prisma` | Same approved supporting field | E4 |
+| W1-003 | Additive migration, 17 tables | Yes, disposable only | `dental-pms/prisma/migrations/20260919213000_wave1_core_infrastructure/migration.sql` | Conditional audit grant and authorization guard; no production DDL | E1, E2 |
 | W1-004 | Event identity | Yes | `dental-pms/src/lib/canonical/event-identity.ts` | None identified | E3 |
 | W1-005 | Dormant typed event contract | Yes | `dental-pms/src/lib/canonical/event-header.ts` | No live event type or writer | E3 |
 | W1-006 | Concrete provenance | Yes | `dental-pms/src/lib/canonical/provenance.ts` | None identified | E3 |
@@ -37,7 +37,7 @@ Status (2026-09-20): **WAVE 1 PRE-PRODUCTION IMPLEMENTATION INCOMPLETE / BLOCKED
 
 ## B. Exact Migration Object Manifest
 
-The immutable proposed migration SHA-256 is `384068a451c470d5b40e5d40fb44c326c3517875e7620ffd33ebea5183466568`. The [machine-readable catalog proof](WAVE-1-DISPOSABLE-CATALOG-AND-ZERO-ROW-PROOF-v1.json), SHA-256 `b5170ce212f6f8ae23c219f111a2d9f5e0026384400a05e491d0074d413239c4`, enumerates **every** table, enum, index (including unique and partial), constraint (PK, FK, check, unique), trigger, trigger function, and grant by exact catalog name and definition. This is the exact object list, not a sample or count-only summary. Counts: 17 tables, 6 enums, 44 indexes, 57 constraints, 18 triggers, 7 trigger functions, 17 audit-role SELECT grants. There are no audit-role write grants in the disposable proof. The six enums are `CanonicalMigrationClass`, `CanonicalCorrectionKind`, `CanonicalGovernanceStatus`, `CanonicalReconciliationStatus`, `CanonicalExceptionStatus`, and `CanonicalAttributionState`. SQL static scope check passed: no legacy table ALTER, DROP, backfill, business INSERT, or domain event/entity table. The supporting `contentHash` column and its nonempty check are a specification-review item; they are not silently declared approved.
+The immutable proposed migration SHA-256 is `384068a451c470d5b40e5d40fb44c326c3517875e7620ffd33ebea5183466568`. The [machine-readable catalog proof](WAVE-1-DISPOSABLE-CATALOG-AND-ZERO-ROW-PROOF-v1.json), SHA-256 `b5170ce212f6f8ae23c219f111a2d9f5e0026384400a05e491d0074d413239c4`, enumerates **every** table, enum, index (including unique and partial), constraint (PK, FK, check, unique), trigger, trigger function, and grant by exact catalog name and definition. This is the exact object list, not a sample or count-only summary. Counts: 17 tables, 6 enums, 44 indexes, 57 constraints, 18 triggers, 7 trigger functions, 17 audit-role SELECT grants. There are no audit-role write grants in the disposable proof. The six enums are `CanonicalMigrationClass`, `CanonicalCorrectionKind`, `CanonicalGovernanceStatus`, `CanonicalReconciliationStatus`, `CanonicalExceptionStatus`, and `CanonicalAttributionState`. SQL static scope check passed: no legacy table ALTER, DROP, backfill, business INSERT, or domain event/entity table. The supporting `contentHash` field was approved in the follow-up owner decision. Its library contract is now `sha256:v1:<digest>` over deterministic canonical semantic JSON; system-generated fields are rejected, and changed content cannot replay under the same idempotency key.
 
 ## C. Zero-Row Proof
 
@@ -51,25 +51,37 @@ The local canonical suite: **42 passed, 1 skipped**. The skipped Wave 0 ledger i
 
 No Wave 1 writer route, registered live business event type, production runtime activation, canonical flag/allowlist change, or website write path was introduced. The website change is Prisma schema mirror only. In a disposable database where `lumora_audit_ro` existed before migration, the catalog proof shows 17 SELECT grants, and the baseline script verified no INSERT/UPDATE/DELETE on those tables and no schema/database CREATE or database TEMP privilege. This does **not** substitute for a fresh production role/flag check. Production PMS startup runs `prisma migrate deploy`; therefore the Wave 1 source/image must remain off the VPS until separately authorized. The migration also aborts without a database-local authorization setting, tested in a disposable negative case.
 
-## F. Recovery Evidence
+## F. Recovery Evidence (Initial Assessment)
 
 Wave 0 acceptance documented an encrypted VPS-local backup and isolated PostgreSQL 16 restore with five-way fingerprint/reconciliation equality; see [Wave 0 package](LUMORA-MIGRATION-WAVE-0-EXECUTION-ACCEPTANCE-PACKAGE-v1.md). That is prior lineage, **not** a current Wave 1 recovery proof. A current encrypted production backup, an independently resilient off-VPS copy, its artifact SHA-256/destination/retention/access/key separation, retrieval integrity verification, and an isolated same-major restore of the current backup have **not** been established in this package. No database dump or private age identity is committed. W1-PROD-DDL-GATE is BLOCKED until the actual artifacts and lineage are recorded.
 
-## G. Current Production Baseline
+## G. Production Baseline (Initial Assessment)
 
 The accepted Wave 0 post-DDL baseline is dated `2026-09-19T20:38:20.342Z`, SHA-256 `16617b86e7e442aa74228a0a1c08c7951f86bbd00d6197b4c415d776d594c006`. A live, narrow check on 2026-09-20 showed `20260918190000_wave0_control_plane` as the latest applied Prisma migration and `canonical_event_headers` absent. This query used the DB administrative connection and is **not** the required read-only audit baseline. An attempt to run the existing Wave 0 audit baseline in the live PMS container failed before querying because the production image lacks `scripts/canonical/wave0-baseline.ts`. A **fresh** production read-only fingerprint, reconciliation result, full Wave 1 table-absence proof, role/flag proof, and drift analysis against the accepted snapshot are therefore pending. Normal clinic activity can change counts between snapshots; no historical exception has been repaired or imported here. The lack of a fresh baseline blocks the gate.
 
-## H. W1-PROD-DDL-GATE
+## H. W1-PROD-DDL-GATE (Initial Assessment)
 
 | Input | Result |
 | --- | --- |
 | Frozen scope, static SQL hash, fresh disposable migration, repeat migration, 17 zero rows | PASS locally |
 | Constraint/concurrency suite and local builds | PASS locally; remote CI pending |
 | Conditional audit-role grant and read-only privileges | PASS in disposable DB; production confirmation pending |
-| Supporting `contentHash` field/guard reviewed against frozen specification | BLOCKED: explicit owner review needed |
+| Supporting `contentHash` field/guard reviewed against frozen specification | PASS: follow-up owner decision; versioned library contract tested |
 | Current backup and independent encrypted off-VPS copy/retrieval | BLOCKED |
 | Current-backup isolated restore and five-way comparison | BLOCKED |
 | Fresh production read-only baseline and drift explanation | BLOCKED |
 | Canonical production flags/allowlists remain OFF, no Wave 1 rows | Pending fresh production proof |
 
 **W1-PROD-DDL-GATE = BLOCKED.** Run `npm run wave1:prod-ddl-gate` with no evidence file to confirm fail-closed behavior. Even a later gate PASS would not authorize production DDL; separate explicit owner authorization is mandatory. Do not sync or restart the Wave 1 migration-containing PMS build on the VPS.
+
+## I. Follow-Up Owner Decision And Evidence, 2026-09-20
+
+**Owner decisions.** Cloudflare R2 is approved as the independent off-VPS encrypted recovery destination. A dedicated private bucket, no public access/domain, minimum-scoped identities, Bucket Lock, and client-side age encryption are mandatory. Routine backups must be retained at least 180 days; a later formally accepted wave's reference backup must be retained 365 days from acceptance. The Asia-Pacific location hint should be used where supported but is not a legal residency guarantee. The age private identity must never be placed in R2, Git, or public audit materials. The owner also expressly approved `contentHash` as a technical SHA-256 semantic-content/idempotency invariant. These decisions resolve the earlier `contentHash` review item, but not the R2 evidence requirement.
+
+**Current VPS-local recovery source.** The reviewed backup process produced `lumora-wave0-20260920T084128Z.dump.age` at `2026-09-20T08:41:28Z` from production PostgreSQL `16.14` using `pg_dump 16.14`. The encrypted artifact SHA-256 is `96e46aa24f73528dbe96716545e3846e601db07ebd1fe6cded2c492ab37f355d`; size is about 302 KB. Source is the live `dental_pms` database through the existing reviewed script, stored in a root-only VPS backup directory. The verifier matched the manifest hash, decrypted with the separately controlled age identity, and passed `pg_restore --list`. A restricted copy of the private identity was placed on the owner's Windows computer outside the repository, R2, and encrypted artifact; its ACL permits only that user and SYSTEM. Owner-managed second-copy/vault retention remains to be confirmed. This is **not yet** an R2 recovery proof.
+
+**Fresh production read-only evidence.** At `2026-09-20T08:46:07.468Z`, the existing Wave 0 baseline ran through `lumora_audit_ro` over a temporary SSH tunnel, with `BEGIN READ ONLY`, and produced ignored local runtime artifact SHA-256 `5ac726bc0db94e29dfb6ff5d9bb73fb6cc30ed1aa533b8edae90ba475f4fd4b9`. The Wave 1 pre-DDL baseline artifact SHA-256 is `6851043d3ffe18caea7cdeacfaa0be5966321170d6e5ff5c4f1f0727186297c0`: all Wave 1 tables absent. A separate audit-role privilege proof, SHA-256 `36d94d422ed5034524968252abf61970bd96681fb1f201741aec32ce815c2c54`, reports no table write, database CREATE, or TEMP privilege. Production Wave 0 canonical flag/version table counts are zero; production environment inspection found migration mode `disabled` and all six canonical allowlists empty. No raw baseline rows, patient data, credentials, or private keys are committed.
+
+**Drift from accepted Wave 0 snapshot.** Schema fingerprint and Prisma migration history hashes are unchanged; the same 30 frozen reconciliation statements were used. From `2026-09-19T20:38:20.342Z` to `2026-09-20T08:46:07.468Z`, patients and visits each increased `179 -> 184` and `156 -> 161`; invoices `112 -> 117`, payments `100 -> 104`, reception queue items `202 -> 207`, and related clinical/financial records also increased. These are consistent with ordinary clinic activity between snapshots, not a schema migration or historical repair. The frozen query results changed as expected with live activity; no exception cohort was imported or repaired.
+
+**CI history and current gate evaluation.** GitHub Actions runs [35499586739](https://github.com/Pasindu099/Patient-management-system/actions/runs/35499586739) for `30eed9b` and [35499668212](https://github.com/Pasindu099/Patient-management-system/actions/runs/35499668212) for `f28a0ce` failed; the latter failed at PMS type check/build. A catalog-summary TypeScript narrowing error was then corrected locally. The approved versioned `contentHash` library contract added one focused test. Local evidence now shows immutable SQL scope/zero-row proof, **43** passing canonical tests (one unrelated Wave 0 ledger test skipped), PMS type check/build, website build, production read-only baseline/role/flag proof, current VPS-local backup, and owner `contentHash` decision. Remote CI for the reviewed successor commit is pending. The dedicated private R2 bucket, actual Bucket Lock retain-until, scoped credentials, encrypted upload hash/metadata, R2 retrieval, integrity/decryption/archive proof, and R2-derived isolated PostgreSQL 16 restore/five-way comparison are pending. Thus **W1-PROD-DDL-GATE remains BLOCKED**; no production Wave 1 DDL or deployment is authorized.
